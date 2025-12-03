@@ -231,9 +231,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Contact
 
-- **Author**: [Your Name]
-- **Email**: [your.email@example.com]
-- **GitHub**: [https://github.com/yourusername/pdbprep](https://github.com/yourusername/pdbprep)
+- **Author**: Pritam Kumar Panda
+- **Email**: pritam@stanford.edu
+- **GitHub**: [https://github.com/pritampanda15/pdbprep](https://github.com/pritampanda15/pdbprep)
 
 ## Roadmap
 
