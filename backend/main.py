@@ -1,0 +1,795 @@
+"""
+PDBPrep Studio — FastAPI Backend Server
+Provides full REST API for:
+- Structure Import (Upload PDB/mmCIF, RCSB PDB Fetch, AlphaFold DB Fetch, Curated Showcase)
+- PDBFixer Deep Diagnostics & Repair
+- PROPKA 3 pKa Analysis, Titration Curves & Protonation / H-Bond Network Optimization
+- COOT Crystallographic Validation & Interactive Residue Editing (Mutate, Rotamer Picker, Auto-Fit, Pepflip, Cis↔Trans, NQH Flip, AltLoc Picker, Chirality Fix, Zone Regularization, Auto-Polish)
+- Ligand, Cofactor & Metal Coordination Analysis + RDKit 2D SVG & 3D ETKDGv3 Conformers
+- Multi-Target Readiness Audit & Export (PDB, mmCIF, PDBQT + Vina Config, PQR, GROMACS MD Bundle ZIP, Reports)
+"""
+
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+from typing import Any, Dict
+
+from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, PlainTextResponse, Response
+from fastapi.staticfiles import StaticFiles
+
+from .engines.coot_engine import (
+    apply_rotamer,
+    auto_fix_coot,
+    delete_residue,
+    fix_chirality,
+    flip_cis_trans,
+    flip_nqh_residue,
+    get_residue_rotamers,
+    mutate_residue,
+    pepflip_residue,
+    pick_altloc,
+    regularize_zone,
+)
+from .engines.export_engine import (
+    build_gromacs_zip_bundle,
+    check_external_tools,
+    estimate_solvation_system,
+    generate_markdown_report,
+    generate_pqr,
+    generate_receptor_pdbqt,
+    generate_vina_config,
+    run_gromacs_preflight_test,
+)
+from .engines.ligand_engine import generate_ligand_conformers_sdf
+from .engines.pdbfixer_engine import run_pdbfixer
+from .engines.propka_engine import analyze_propka, apply_protonation
+from .engines.rename_engine import (
+    auto_standardize_chain_ids,
+    canonicalize_residue_names,
+    delete_chain,
+    delete_chains_batch,
+    merge_chains,
+    normalize_structure_fields,
+    rename_chains_batch,
+    rename_residue_code,
+    renumber_chain,
+    reorder_chains,
+)
+from .engines.structure_io import (
+    build_showcase_structure,
+    fetch_alphafold_structure,
+    fetch_rcsb_structure,
+    parse_structure_text,
+    structure_to_gro,
+    structure_to_mmcif,
+    structure_to_pdb,
+)
+from .models import (
+    AltlocPickRequest,
+    AutoFixCootRequest,
+    DeepPrepPresetRequest,
+    DeleteChainRequest,
+    ExportRequest,
+    FetchAlphaFoldRequest,
+    FetchRCSBRequest,
+    LoadSampleRequest,
+    MergeChainsRequest,
+    MutateRequest,
+    NormalizeFieldsRequest,
+    PdbFixerOptions,
+    PropkaOptions,
+    RegularizeZoneRequest,
+    RenameChainsRequest,
+    RenameFileRequest,
+    RenameResidueCodeRequest,
+    RenumberChainRequest,
+    ReorderChainsRequest,
+    ResidueTarget,
+    RotamerApplyRequest,
+)
+from .session_manager import STORE
+
+app = FastAPI(
+    title="PDBPrep Studio API",
+    version="2.0.0",
+    description="Deep Protein Preparation, PDBFixer, PROPKA 3 & COOT Crystallographic Workbench",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+def _get_session(sid: str):
+    try:
+        return STORE.get(sid)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"Structure session '{sid}' not found")
+
+
+# ---------------------------------------------------------------------------
+# System & Sessions
+# ---------------------------------------------------------------------------
+
+@app.get("/api/health")
+def health() -> Dict[str, Any]:
+    return {
+        "status": "ok",
+        "version": "2.0.0",
+        "engines": check_external_tools(),
+        "sessions": STORE.list_sessions(),
+    }
+
+
+@app.get("/api/sessions")
+def list_sessions() -> Dict[str, Any]:
+    return {"sessions": STORE.list_sessions()}
+
+
+@app.get("/api/sessions/{sid}")
+def get_session_state(sid: str) -> Dict[str, Any]:
+    sess = _get_session(sid)
+    return sess.get_full_state()
+
+
+@app.post("/api/sessions/{sid}/undo")
+def undo_session(sid: str) -> Dict[str, Any]:
+    sess = _get_session(sid)
+    action = sess.undo()
+    return {"undone": action, "state": sess.get_full_state()}
+
+
+@app.post("/api/sessions/{sid}/redo")
+def redo_session(sid: str) -> Dict[str, Any]:
+    sess = _get_session(sid)
+    action = sess.redo()
+    return {"redone": action, "state": sess.get_full_state()}
+
+
+# ---------------------------------------------------------------------------
+# Structure Ingestion (Upload, RCSB, AlphaFold, Curated Showcase)
+# ---------------------------------------------------------------------------
+
+@app.post("/api/import/upload")
+async def upload_structure(file: UploadFile = File(...)) -> Dict[str, Any]:
+    try:
+        raw = await file.read()
+        text = raw.decode("utf-8", errors="replace")
+        filename = file.filename or "uploaded.pdb"
+        st = parse_structure_text(text, filename)
+        sess = STORE.create(name=filename, source="Local Upload", st=st)
+        return sess.get_full_state()
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Failed to parse structure: {exc}")
+
+
+@app.post("/api/import/rcsb")
+async def import_rcsb(req: FetchRCSBRequest) -> Dict[str, Any]:
+    try:
+        text, filename = await fetch_rcsb_structure(req.pdb_id, req.format)
+        st = parse_structure_text(text, filename)
+        sess = STORE.create(name=filename, source=f"RCSB PDB ({req.pdb_id.upper()})", st=st)
+        return sess.get_full_state()
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/api/import/alphafold")
+async def import_alphafold(req: FetchAlphaFoldRequest) -> Dict[str, Any]:
+    try:
+        text, filename = await fetch_alphafold_structure(req.uniprot_id)
+        st = parse_structure_text(text, filename)
+        sess = STORE.create(name=filename, source=f"AlphaFold DB ({req.uniprot_id.upper()})", st=st)
+        return sess.get_full_state()
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/api/import/sample")
+async def import_sample(req: LoadSampleRequest) -> Dict[str, Any]:
+    if req.sample_id.strip().upper() == "6LU7":
+        text, filename = await fetch_rcsb_structure("6LU7", "pdb")
+        st = parse_structure_text(text, filename)
+        sess = STORE.create(name=filename, source="RCSB PDB (6LU7 · Default)", st=st)
+        return sess.get_full_state()
+    text, filename = build_showcase_structure(req.sample_id)
+    st = parse_structure_text(text, filename)
+    sess = STORE.create(name=filename, source="Built-in Metalloenzyme Showcase", st=st)
+    return sess.get_full_state()
+
+
+# ---------------------------------------------------------------------------
+# One-Click Deep Preparation Presets (PDBFixer + COOT + PROPKA)
+# ---------------------------------------------------------------------------
+
+@app.post("/api/sessions/{sid}/deep-prep")
+def run_deep_prep_preset(sid: str, req: DeepPrepPresetRequest) -> Dict[str, Any]:
+    sess = _get_session(sid)
+    sess.push_undo(f"Deep Prep Preset ({req.preset})")
+    actions = []
+
+    if req.preset == "md_production":
+        fixer_opts = PdbFixerOptions(
+            replace_nonstandard=True,
+            resolve_altlocs="highest_occupancy",
+            add_missing_atoms=True,
+            add_missing_residues=True,
+            cap_termini="none",
+            assign_disulfides=True,
+            remove_waters="bulk",
+            remove_crystallization_artifacts=True,
+            keep_ligands=True,
+            keep_cofactors=True,
+            keep_metals=True,
+        )
+        f_res = run_pdbfixer(sess.structure, fixer_opts.model_dump())
+        actions.extend(f_res["actions"])
+        c_res = auto_fix_coot(sess.structure)
+        actions.extend(c_res["actions"])
+        sess.ph = req.ph
+        p_res = apply_protonation(sess.structure, PropkaOptions(ph=req.ph).model_dump())
+        actions.extend(p_res["actions"])
+
+    elif req.preset == "docking_receptor":
+        fixer_opts = PdbFixerOptions(
+            replace_nonstandard=True,
+            resolve_altlocs="highest_occupancy",
+            add_missing_atoms=True,
+            add_missing_residues=True,
+            assign_disulfides=True,
+            remove_waters="bulk",
+            remove_crystallization_artifacts=True,
+            keep_ligands=True,
+            keep_cofactors=True,
+            keep_metals=True,
+        )
+        f_res = run_pdbfixer(sess.structure, fixer_opts.model_dump())
+        actions.extend(f_res["actions"])
+        c_res = auto_fix_coot(sess.structure)
+        actions.extend(c_res["actions"])
+        sess.ph = req.ph
+        p_res = apply_protonation(sess.structure, PropkaOptions(ph=req.ph).model_dump())
+        actions.extend(p_res["actions"])
+
+    else:  # crystallographic_polish
+        c_res = auto_fix_coot(sess.structure)
+        actions.extend(c_res["actions"])
+
+    sess.invalidate_cache()
+    sess.record_history(f"Executed Deep Prep Preset '{req.preset}' ({len(actions)} steps)")
+    return {"actions": actions, "state": sess.get_full_state()}
+
+
+# ---------------------------------------------------------------------------
+# PDBFixer Deep Pipeline
+# ---------------------------------------------------------------------------
+
+@app.post("/api/sessions/{sid}/pdbfixer/run")
+def run_pdbfixer_endpoint(sid: str, opts: PdbFixerOptions) -> Dict[str, Any]:
+    sess = _get_session(sid)
+    sess.push_undo("PDBFixer Pipeline")
+    result = run_pdbfixer(sess.structure, opts.model_dump())
+    sess.invalidate_cache()
+    sess.record_history(f"PDBFixer completed ({len(result['actions'])} operations)")
+    return {"result": result, "state": sess.get_full_state()}
+
+
+# ---------------------------------------------------------------------------
+# PROPKA 3 & Protonation Engine
+# ---------------------------------------------------------------------------
+
+@app.post("/api/sessions/{sid}/propka/preview")
+def preview_propka_endpoint(sid: str, opts: PropkaOptions) -> Dict[str, Any]:
+    """Re-evaluate PROPKA predictions live at a new pH or with overrides without mutating coordinates."""
+    sess = _get_session(sid)
+    sess.ph = opts.ph
+    sess.propka_overrides = dict(opts.overrides)
+    sess.his_default = opts.his_default
+    sess.respect_metal = opts.respect_metal_coordination
+    sess.respect_disulfides = opts.respect_disulfides
+    sess.invalidate_cache()
+    analysis = analyze_propka(
+        sess.structure,
+        ph=opts.ph,
+        respect_metal_coordination=opts.respect_metal_coordination,
+        respect_disulfides=opts.respect_disulfides,
+        his_default=opts.his_default,
+        overrides=opts.overrides,
+    )
+    return {"propka": analysis}
+
+
+@app.post("/api/sessions/{sid}/propka/apply")
+def apply_propka_endpoint(sid: str, opts: PropkaOptions) -> Dict[str, Any]:
+    sess = _get_session(sid)
+    sess.push_undo(f"PROPKA Protonation (pH {opts.ph})")
+    sess.ph = opts.ph
+    sess.propka_overrides = dict(opts.overrides)
+    sess.his_default = opts.his_default
+    sess.respect_metal = opts.respect_metal_coordination
+    sess.respect_disulfides = opts.respect_disulfides
+    res = apply_protonation(sess.structure, opts.model_dump())
+    sess.invalidate_cache()
+    sess.record_history(f"Applied PROPKA protonation at pH {opts.ph} (+{res['hydrogens_added']} H)")
+    return {"result": res, "state": sess.get_full_state()}
+
+
+# ---------------------------------------------------------------------------
+# COOT Interactive Model-Building & Validation Actions
+# ---------------------------------------------------------------------------
+
+@app.get("/api/sessions/{sid}/coot/rotamers")
+def coot_list_rotamers(sid: str, chain: str, resseq: int, icode: str = "") -> Dict[str, Any]:
+    sess = _get_session(sid)
+    try:
+        return get_residue_rotamers(sess.structure, chain, resseq, icode)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/api/sessions/{sid}/coot/rotamer")
+def coot_apply_rotamer(sid: str, req: RotamerApplyRequest) -> Dict[str, Any]:
+    sess = _get_session(sid)
+    sess.push_undo(f"COOT Rotamer {req.chain}:{req.resseq}")
+    try:
+        res = apply_rotamer(sess.structure, req.chain, req.resseq, req.icode, req.rotamer_index, req.chi_angles)
+    except Exception as exc:
+        sess.undo_stack.pop()
+        raise HTTPException(status_code=400, detail=str(exc))
+    sess.invalidate_cache()
+    sess.record_history(res["message"])
+    return {"result": res, "state": sess.get_full_state()}
+
+
+@app.post("/api/sessions/{sid}/coot/mutate")
+def coot_mutate(sid: str, req: MutateRequest) -> Dict[str, Any]:
+    sess = _get_session(sid)
+    sess.push_undo(f"COOT Mutate {req.chain}:{req.resseq} -> {req.target_resname}")
+    try:
+        res = mutate_residue(sess.structure, req.chain, req.resseq, req.target_resname, req.icode)
+    except Exception as exc:
+        sess.undo_stack.pop()
+        raise HTTPException(status_code=400, detail=str(exc))
+    sess.invalidate_cache()
+    sess.record_history(res["message"])
+    return {"result": res, "state": sess.get_full_state()}
+
+
+@app.post("/api/sessions/{sid}/coot/pepflip")
+def coot_pepflip(sid: str, req: ResidueTarget) -> Dict[str, Any]:
+    sess = _get_session(sid)
+    sess.push_undo(f"COOT Pepflip {req.chain}:{req.resseq}")
+    try:
+        res = pepflip_residue(sess.structure, req.chain, req.resseq, req.icode)
+    except Exception as exc:
+        sess.undo_stack.pop()
+        raise HTTPException(status_code=400, detail=str(exc))
+    sess.invalidate_cache()
+    sess.record_history(res["message"])
+    return {"result": res, "state": sess.get_full_state()}
+
+
+@app.post("/api/sessions/{sid}/coot/cis-trans")
+def coot_cis_trans(sid: str, req: ResidueTarget) -> Dict[str, Any]:
+    sess = _get_session(sid)
+    sess.push_undo(f"COOT Cis-Trans {req.chain}:{req.resseq}")
+    try:
+        res = flip_cis_trans(sess.structure, req.chain, req.resseq, req.icode)
+    except Exception as exc:
+        sess.undo_stack.pop()
+        raise HTTPException(status_code=400, detail=str(exc))
+    sess.invalidate_cache()
+    sess.record_history(res["message"])
+    return {"result": res, "state": sess.get_full_state()}
+
+
+@app.post("/api/sessions/{sid}/coot/nqh-flip")
+def coot_nqh_flip(sid: str, req: ResidueTarget) -> Dict[str, Any]:
+    sess = _get_session(sid)
+    sess.push_undo(f"COOT NQH Flip {req.chain}:{req.resseq}")
+    try:
+        res = flip_nqh_residue(sess.structure, req.chain, req.resseq, req.icode)
+    except Exception as exc:
+        sess.undo_stack.pop()
+        raise HTTPException(status_code=400, detail=str(exc))
+    sess.invalidate_cache()
+    sess.record_history(res["message"])
+    return {"result": res, "state": sess.get_full_state()}
+
+
+@app.post("/api/sessions/{sid}/coot/altloc")
+def coot_altloc(sid: str, req: AltlocPickRequest) -> Dict[str, Any]:
+    sess = _get_session(sid)
+    sess.push_undo(f"COOT AltLoc {req.chain}:{req.resseq} -> {req.altloc}")
+    try:
+        res = pick_altloc(sess.structure, req.chain, req.resseq, req.altloc, req.icode)
+    except Exception as exc:
+        sess.undo_stack.pop()
+        raise HTTPException(status_code=400, detail=str(exc))
+    sess.invalidate_cache()
+    sess.record_history(res["message"])
+    return {"result": res, "state": sess.get_full_state()}
+
+
+@app.post("/api/sessions/{sid}/coot/fix-chirality")
+def coot_fix_chirality(sid: str, req: ResidueTarget) -> Dict[str, Any]:
+    sess = _get_session(sid)
+    sess.push_undo(f"COOT Fix Chirality {req.chain}:{req.resseq}")
+    try:
+        res = fix_chirality(sess.structure, req.chain, req.resseq, req.icode)
+    except Exception as exc:
+        sess.undo_stack.pop()
+        raise HTTPException(status_code=400, detail=str(exc))
+    sess.invalidate_cache()
+    sess.record_history(res["message"])
+    return {"result": res, "state": sess.get_full_state()}
+
+
+@app.post("/api/sessions/{sid}/coot/regularize")
+def coot_regularize(sid: str, req: RegularizeZoneRequest) -> Dict[str, Any]:
+    sess = _get_session(sid)
+    sess.push_undo(f"COOT Regularize {req.chain}:{req.start_resseq}-{req.end_resseq}")
+    try:
+        res = regularize_zone(sess.structure, req.chain, req.start_resseq, req.end_resseq, req.iterations)
+    except Exception as exc:
+        sess.undo_stack.pop()
+        raise HTTPException(status_code=400, detail=str(exc))
+    sess.invalidate_cache()
+    sess.record_history(res["message"])
+    return {"result": res, "state": sess.get_full_state()}
+
+
+@app.post("/api/sessions/{sid}/coot/delete-residue")
+def coot_delete_residue(sid: str, req: ResidueTarget) -> Dict[str, Any]:
+    sess = _get_session(sid)
+    sess.push_undo(f"Delete {req.chain}:{req.resseq}")
+    try:
+        res = delete_residue(sess.structure, req.chain, req.resseq, req.icode)
+    except Exception as exc:
+        sess.undo_stack.pop()
+        raise HTTPException(status_code=400, detail=str(exc))
+    sess.invalidate_cache()
+    sess.record_history(res["message"])
+    return {"result": res, "state": sess.get_full_state()}
+
+
+@app.post("/api/sessions/{sid}/coot/auto-fix")
+def coot_auto_fix(sid: str, req: AutoFixCootRequest) -> Dict[str, Any]:
+    sess = _get_session(sid)
+    sess.push_undo("COOT Auto-Refine")
+    res = auto_fix_coot(
+        sess.structure,
+        fix_clashes=req.fix_clashes,
+        fix_rotamers=req.fix_rotamers,
+        fix_nqh_flips=req.fix_nqh_flips,
+        fix_cis_nonpro=req.fix_cis_nonpro,
+        fix_ramachandran=req.fix_ramachandran,
+        regularize_outliers=req.regularize_outliers,
+    )
+    sess.invalidate_cache()
+    sess.record_history(
+        f"COOT Auto-Refine: Quality {res['before_score']} → {res['after_score']} (Clashscore {res['before_clashscore']} → {res['after_clashscore']})"
+    )
+    return {"result": res, "state": sess.get_full_state()}
+
+
+# ---------------------------------------------------------------------------
+# Structure, File, Chain & Residue Renaming Studio
+# ---------------------------------------------------------------------------
+
+@app.post("/api/sessions/{sid}/rename/file")
+def rename_structure_file(sid: str, req: RenameFileRequest) -> Dict[str, Any]:
+    sess = _get_session(sid)
+    new_name = req.filename.strip()
+    if not new_name.lower().endswith((".pdb", ".cif", ".mmcif", ".gro", ".ent")):
+        new_name += ".pdb"
+    old_name = sess.name
+    sess.name = new_name
+    sess.structure.name = Path(new_name).stem[:16]
+    if req.title is not None and req.title.strip():
+        sess.structure.info["_struct.title"] = req.title.strip()
+    sess.invalidate_cache()
+    msg = f"Renamed file {old_name} → {new_name}"
+    sess.record_history(msg)
+    return {"result": {"message": msg}, "state": sess.get_full_state()}
+
+
+@app.post("/api/sessions/{sid}/rename/chains")
+def rename_chains_endpoint(sid: str, req: RenameChainsRequest) -> Dict[str, Any]:
+    sess = _get_session(sid)
+    sess.push_undo("Rename Chains")
+    try:
+        res = rename_chains_batch(sess.structure, req.mapping)
+    except Exception as exc:
+        sess.undo_stack.pop()
+        raise HTTPException(status_code=400, detail=str(exc))
+    if not res.get("changed"):
+        sess.undo_stack.pop()
+    else:
+        sess.invalidate_cache()
+        sess.record_history(res["message"])
+    return {"result": res, "state": sess.get_full_state()}
+
+
+@app.post("/api/sessions/{sid}/rename/chains/standardize")
+def standardize_chains_endpoint(sid: str) -> Dict[str, Any]:
+    sess = _get_session(sid)
+    sess.push_undo("Standardize Chain IDs (A, B, C…)")
+    try:
+        res = auto_standardize_chain_ids(sess.structure)
+    except Exception as exc:
+        sess.undo_stack.pop()
+        raise HTTPException(status_code=400, detail=str(exc))
+    if not res.get("changed"):
+        sess.undo_stack.pop()
+    else:
+        sess.invalidate_cache()
+        sess.record_history(res["message"])
+    return {"result": res, "state": sess.get_full_state()}
+
+
+@app.post("/api/sessions/{sid}/rename/chains/reorder")
+def reorder_chains_endpoint(sid: str, req: ReorderChainsRequest) -> Dict[str, Any]:
+    sess = _get_session(sid)
+    sess.push_undo("Reorder Chains")
+    try:
+        res = reorder_chains(sess.structure, req.chain_order)
+    except Exception as exc:
+        sess.undo_stack.pop()
+        raise HTTPException(status_code=400, detail=str(exc))
+    sess.invalidate_cache()
+    sess.record_history(res["message"])
+    return {"result": res, "state": sess.get_full_state()}
+
+
+@app.post("/api/sessions/{sid}/rename/chains/merge")
+def merge_chains_endpoint(sid: str, req: MergeChainsRequest) -> Dict[str, Any]:
+    sess = _get_session(sid)
+    sess.push_undo(f"Merge Chain {req.source_chain} → {req.target_chain}")
+    try:
+        res = merge_chains(sess.structure, req.source_chain, req.target_chain, req.renumber_merged)
+    except Exception as exc:
+        sess.undo_stack.pop()
+        raise HTTPException(status_code=400, detail=str(exc))
+    sess.invalidate_cache()
+    sess.record_history(res["message"])
+    return {"result": res, "state": sess.get_full_state()}
+
+
+@app.post("/api/sessions/{sid}/rename/chains/delete")
+def delete_chain_endpoint(sid: str, req: DeleteChainRequest) -> Dict[str, Any]:
+    sess = _get_session(sid)
+    ids = list(req.chain_ids or [])
+    if req.chain_id:
+        ids.append(req.chain_id)
+    if not ids:
+        raise HTTPException(status_code=400, detail="Provide chain_id or chain_ids to delete")
+    sess.push_undo(f"Delete Chain(s) {', '.join(ids)}")
+    try:
+        res = delete_chains_batch(sess.structure, ids)
+    except Exception as exc:
+        sess.undo_stack.pop()
+        raise HTTPException(status_code=400, detail=str(exc))
+    sess.invalidate_cache()
+    sess.record_history(res["message"])
+    return {"result": res, "state": sess.get_full_state()}
+
+
+@app.post("/api/sessions/{sid}/rename/renumber")
+def renumber_chain_endpoint(sid: str, req: RenumberChainRequest) -> Dict[str, Any]:
+    sess = _get_session(sid)
+    sess.push_undo(f"Renumber Chain {req.chain_id}")
+    try:
+        res = renumber_chain(
+            sess.structure,
+            req.chain_id,
+            req.mode,
+            req.start_num,
+            req.offset,
+            req.include_heterogens,
+            req.clear_icodes,
+        )
+    except Exception as exc:
+        sess.undo_stack.pop()
+        raise HTTPException(status_code=400, detail=str(exc))
+    sess.invalidate_cache()
+    sess.record_history(res["message"])
+    return {"result": res, "state": sess.get_full_state()}
+
+
+@app.post("/api/sessions/{sid}/rename/residue-code")
+def rename_residue_code_endpoint(sid: str, req: RenameResidueCodeRequest) -> Dict[str, Any]:
+    sess = _get_session(sid)
+    sess.push_undo(f"Rename Residue {req.old_resname} → {req.new_resname}")
+    try:
+        res = rename_residue_code(
+            sess.structure,
+            req.old_resname,
+            req.new_resname,
+            req.chain_id,
+            req.resseq,
+            req.move_to_chain,
+        )
+    except Exception as exc:
+        sess.undo_stack.pop()
+        raise HTTPException(status_code=400, detail=str(exc))
+    sess.invalidate_cache()
+    sess.record_history(res["message"])
+    return {"result": res, "state": sess.get_full_state()}
+
+
+@app.post("/api/sessions/{sid}/rename/canonicalize")
+def canonicalize_names_endpoint(sid: str) -> Dict[str, Any]:
+    sess = _get_session(sid)
+    sess.push_undo("Canonicalize Residue Names")
+    res = canonicalize_residue_names(sess.structure)
+    if not res.get("changed"):
+        sess.undo_stack.pop()
+    else:
+        sess.invalidate_cache()
+        sess.record_history(res["message"])
+    return {"result": res, "state": sess.get_full_state()}
+
+
+@app.post("/api/sessions/{sid}/rename/normalize")
+def normalize_fields_endpoint(sid: str, req: NormalizeFieldsRequest) -> Dict[str, Any]:
+    sess = _get_session(sid)
+    sess.push_undo("Normalize PDB Fields")
+    res = normalize_structure_fields(
+        sess.structure,
+        reset_occupancy=req.reset_occupancy,
+        reset_bfactor=req.reset_bfactor,
+        strip_waters_to_chain=req.strip_waters_to_chain,
+    )
+    if not res.get("changed"):
+        sess.undo_stack.pop()
+    else:
+        sess.invalidate_cache()
+        sess.record_history(res["message"])
+    return {"result": res, "state": sess.get_full_state()}
+
+
+# ---------------------------------------------------------------------------
+# Ligand Conformers
+# ---------------------------------------------------------------------------
+
+@app.post("/api/sessions/{sid}/ligands/conformers")
+def ligand_conformers(sid: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+    sess = _get_session(sid)
+    lig_id = payload.get("ligand_id", "")
+    num_confs = int(payload.get("num_conformers", 5))
+    try:
+        sdf, summary = generate_ligand_conformers_sdf(sess.structure, lig_id, num_confs)
+        return {"ligand_id": lig_id, "conformers": summary, "sdf": sdf}
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+# ---------------------------------------------------------------------------
+# Multi-Target Exports (PDB, mmCIF, PDBQT, PQR, GROMACS Bundle ZIP, Reports)
+# ---------------------------------------------------------------------------
+
+@app.post("/api/sessions/{sid}/export")
+def export_structure(sid: str, req: ExportRequest) -> Response:
+    sess = _get_session(sid)
+    state = sess.get_full_state()
+    stem = Path(sess.name).stem
+
+    if req.target == "pdb":
+        content = structure_to_pdb(sess.structure)
+        return PlainTextResponse(
+            content,
+            headers={"Content-Disposition": f'attachment; filename="{stem}_prepared.pdb"'},
+        )
+    if req.target == "mmcif":
+        content = structure_to_mmcif(sess.structure)
+        return PlainTextResponse(
+            content,
+            headers={"Content-Disposition": f'attachment; filename="{stem}_prepared.cif"'},
+        )
+    if req.target == "gro":
+        content = structure_to_gro(sess.structure)
+        return PlainTextResponse(
+            content,
+            headers={"Content-Disposition": f'attachment; filename="{stem}_prepared.gro"'},
+        )
+    if req.target == "pdbqt":
+        content = generate_receptor_pdbqt(sess.structure)
+        return PlainTextResponse(
+            content,
+            headers={"Content-Disposition": f'attachment; filename="{stem}_receptor.pdbqt"'},
+        )
+    if req.target == "pqr":
+        content = generate_pqr(sess.structure)
+        return PlainTextResponse(
+            content,
+            headers={"Content-Disposition": f'attachment; filename="{stem}_prepared.pqr"'},
+        )
+    if req.target == "report_md":
+        content = generate_markdown_report(
+            sess.name,
+            state["metadata"],
+            state["readiness"],
+            state["validation"],
+            state["propka"],
+            state["ligands_info"],
+            state["history"],
+        )
+        return PlainTextResponse(
+            content,
+            headers={"Content-Disposition": f'attachment; filename="{stem}_report.md"'},
+        )
+    if req.target == "report_json":
+        report_obj = {k: v for k, v in state.items() if k != "pdb_text"}
+        return Response(
+            content=json.dumps(report_obj, indent=2),
+            media_type="application/json",
+            headers={"Content-Disposition": f'attachment; filename="{stem}_audit.json"'},
+        )
+    if req.target == "gromacs_bundle":
+        zip_bytes = build_gromacs_zip_bundle(
+            sess.structure,
+            sess.name,
+            req.model_dump(),
+            state["metadata"],
+            state["readiness"],
+            state["validation"],
+            state["propka"],
+            state["ligands_info"],
+            state["history"],
+        )
+        return Response(
+            content=zip_bytes,
+            media_type="application/zip",
+            headers={"Content-Disposition": f'attachment; filename="{stem}_pdbprep_bundle.zip"'},
+        )
+
+    raise HTTPException(status_code=400, detail=f"Unsupported export target: {req.target}")
+
+
+@app.get("/api/sessions/{sid}/vina-config")
+def get_vina_config(sid: str, ligand_id: str = "", padding: float = 6.0) -> Dict[str, Any]:
+    sess = _get_session(sid)
+    state = sess.get_full_state()
+    cfg = generate_vina_config(
+        state["ligands_info"].get("docking_boxes", []),
+        ligand_id or None,
+        padding,
+    )
+    return {"config": cfg}
+
+
+@app.post("/api/sessions/{sid}/gromacs/test")
+def test_gromacs_endpoint(sid: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Run live `gmx pdb2gmx` pre-flight verification + solvation/ion calculator."""
+    sess = _get_session(sid)
+    ff = str(payload.get("force_field", "amber99sb-ildn"))
+    water = str(payload.get("water_model", "tip3p"))
+    box_type = str(payload.get("box_type", "dodecahedron"))
+    box_dist = float(payload.get("box_distance_nm", 1.0))
+    salt = float(payload.get("salt_conc_m", 0.15))
+
+    state = sess.get_full_state()
+    solv = estimate_solvation_system(
+        sess.structure,
+        box_type=box_type,
+        box_distance_nm=box_dist,
+        salt_conc_m=salt,
+        net_charge=state["propka"]["net_charge_discrete"],
+    )
+    gmx_res = run_gromacs_preflight_test(sess.structure, force_field=ff, water_model=water)
+    return {"gromacs": gmx_res, "solvation": solv}
+
+
+# Mount built frontend static assets if available (production single-server mode)
+_FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+if _FRONTEND_DIST.exists():
+    app.mount("/", StaticFiles(directory=str(_FRONTEND_DIST), html=True), name="frontend")

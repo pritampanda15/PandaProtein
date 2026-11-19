@@ -1,0 +1,122 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(128, 128, 136, 0.3) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: rgba(128, 128, 136, 0.28);
+    border-radius: 9999px;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(128, 128, 136, 0.48);
+  }
+}
+
+@layer components {
+  .apple-glass {
+    @apply bg-white/75 dark:bg-[#1C1C21]/80 backdrop-blur-2xl border border-black/[0.07] dark:border-white/[0.09];
+  }
+
+  .apple-card {
+    @apply bg-white/90 dark:bg-[#1C1C22]/90 backdrop-blur-xl rounded-2xl border border-black/[0.06] dark:border-white/[0.08] shadow-apple-sm;
+  }
+
+  .apple-btn-primary {
+    @apply inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-[13px] font-medium
+           bg-[#007AFF] hover:bg-[#0066D6] active:scale-[0.98] text-white shadow-sm
+           transition-all duration-150 disabled:opacity-45 disabled:pointer-events-none;
+  }
+
+  .apple-btn-secondary {
+    @apply inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-[13px] font-medium
+           bg-black/[0.045] hover:bg-black/[0.08] dark:bg-white/[0.07] dark:hover:bg-white/[0.12]
+           text-[#1D1D1F] dark:text-[#F5F5F7] active:scale-[0.98]
+           transition-all duration-150 disabled:opacity-40 disabled:pointer-events-none;
+  }
+
+  .apple-btn-danger {
+    @apply inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-[13px] font-medium
+           bg-[#FF3B30]/10 hover:bg-[#FF3B30]/20 text-[#D70015] dark:text-[#FF453A]
+           active:scale-[0.98] transition-all duration-150 disabled:opacity-40 disabled:pointer-events-none;
+  }
+
+  .apple-input {
+    @apply w-full px-3 py-2 rounded-xl text-[13px] bg-black/[0.035] dark:bg-white/[0.06]
+           border border-black/[0.08] dark:border-white/[0.1]
+           text-[#1D1D1F] dark:text-[#F5F5F7] placeholder:text-[#86868B]
+           focus:outline-none focus:ring-2 focus:ring-[#007AFF]/40 focus:border-[#007AFF]
+           transition-all;
+  }
+
+  .apple-select {
+    @apply px-2.5 py-1.5 rounded-xl text-[13px] bg-black/[0.04] dark:bg-white/[0.07]
+           border border-black/[0.08] dark:border-white/[0.1]
+           text-[#1D1D1F] dark:text-[#F5F5F7]
+           focus:outline-none focus:ring-2 focus:ring-[#007AFF]/40;
+  }
+
+  .apple-pill {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium;
+  }
+
+  .apple-segmented {
+    @apply inline-flex items-center p-0.5 rounded-xl bg-black/[0.05] dark:bg-white/[0.07];
+  }
+
+  .apple-segmented-item {
+    @apply px-2.5 py-1 rounded-[10px] text-[12px] font-medium transition-all;
+  }
+
+  .apple-segmented-active {
+    @apply bg-white dark:bg-[#2C2C34] text-[#1D1D1F] dark:text-white shadow-sm;
+  }
+}
+
+/* Custom macOS range slider */
+input[type='range'].apple-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 5px;
+  border-radius: 9999px;
+  background: rgba(128, 128, 136, 0.25);
+  outline: none;
+}
+
+input[type='range'].apple-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: #ffffff;
+  border: 0.5px solid rgba(0, 0, 0, 0.16);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.22);
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+
+input[type='range'].apple-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.08);
+}

@@ -1,14 +1,14 @@
-# Core Dependencies
-PySide6>=6.5.0
-biopython>=1.81
-rdkit>=2023.3.1
+# Core Web API & Validation
+fastapi>=0.115.0
+uvicorn>=0.32.0
+python-multipart>=0.0.12
+pydantic>=2.9.0
+httpx>=0.27.0
 
-# Optional but recommended
-numpy>=1.24.0
-pandas>=2.0.0
-
-# Development Dependencies (uncomment for development)
-# pytest>=7.4.0
-# pytest-cov>=4.1.0
-# black>=23.7.0
-# flake8>=6.1.0
+# Deep Structural Biology & Cheminformatics Engines
+gemmi>=0.7.0
+biopython>=1.84
+propka>=3.5.1
+rdkit>=2024.3.1
+numpy>=1.26.0
+scipy>=1.13.0
