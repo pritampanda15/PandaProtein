@@ -1,13 +1,21 @@
-# PandaProtein
+<p align="center">
+  <img src="assets/pandaprotein_logo.png" alt="PandaProtein Logo" width="148" />
+</p>
 
-**Deep Protein Preparation & Crystallographic Workbench for Molecular Dynamics & Docking**
+<h1 align="center">PandaProtein</h1>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-007AFF.svg)](LICENSE)
-[![Frontend: React + Tailwind CSS](https://img.shields.io/badge/Frontend-React%20%2B%20Tailwind%20CSS-38BDF8.svg)]()
-[![Backend: FastAPI + Python](https://img.shields.io/badge/Backend-FastAPI%20%2B%20Gemmi%20%2B%20PROPKA%203-34C759.svg)]()
-[![MD & Docking: GROMACS · CHARMM36m · AutoDock Vina](https://img.shields.io/badge/Ready%20for-GROMACS%20%C2%B7%20CHARMM36m%20%C2%B7%20Vina%2FGNINA-AF52DE.svg)]()
+<p align="center">
+  <strong>Deep Protein Preparation &amp; Crystallographic Workbench for Molecular Dynamics, Docking &amp; Ion-Channel Profiling</strong>
+</p>
 
-**PandaProtein** is a modern full-stack protein preparation studio built with **React, TypeScript, and Tailwind CSS** (styled with Apple Human Interface Guidelines) and a high-performance **FastAPI** structural biology backend. It unifies **COOT crystallographic validation & interactive model building**, **PDBFixer structural repair**, **PROPKA 3.5.1 protonation**, **RDKit ligand/pocket analysis**, and **GROMACS (CHARMM36m / AMBER) + AutoDock Vina / GNINA** export pipelines inside a single live 3D web workbench.
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-007AFF.svg" alt="License: MIT" /></a>
+  <img src="https://img.shields.io/badge/Frontend-React%20%2B%20Tailwind%20CSS-38BDF8.svg" alt="Frontend" />
+  <img src="https://img.shields.io/badge/Backend-FastAPI%20%2B%20Gemmi%20%2B%20PROPKA%203-34C759.svg" alt="Backend" />
+  <img src="https://img.shields.io/badge/Ready%20for-GROMACS%20%C2%B7%20CHARMM36m%20%C2%B7%20Vina%20%C2%B7%20MOLE%20%C2%B7%20HOLE-AF52DE.svg" alt="MD &amp; Docking" />
+</p>
+
+**PandaProtein** is a modern full-stack protein preparation studio built with **React, TypeScript, and Tailwind CSS** (styled with Apple Human Interface Guidelines) and a high-performance **FastAPI** structural biology backend. It unifies **COOT crystallographic validation & interactive model building**, **PDBFixer structural repair**, **PROPKA 3.5.1 protonation**, **RDKit ligand/pocket preparation**, **MOLE 2.5 tunnels & HOLE ion-channel pore profiling**, **3D phospholipid bilayer orientation**, and **GROMACS (CHARMM36m / AMBER) + AutoDock Vina / GNINA** export pipelines inside a single live 3D web workbench.
 
 > **Repository:** [https://github.com/pritampanda15/PandaProtein](https://github.com/pritampanda15/PandaProtein)
 

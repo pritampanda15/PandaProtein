@@ -8,7 +8,6 @@ import {
   Sparkles,
   Sun,
   Undo2,
-  Atom,
   Loader2,
 } from 'lucide-react';
 import type { StructureSessionState } from '../types/pdbprep';
@@ -53,13 +52,15 @@ export const TopBar: React.FC<TopBarProps> = ({
       {/* Left: Brand & Active Structure */}
       <div className="flex items-center gap-3 min-w-0">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-[10px] bg-gradient-to-br from-[#007AFF] via-[#5856D6] to-[#AF52DE] flex items-center justify-center shadow-sm">
-            <Atom className="w-4.5 h-4.5 text-white" strokeWidth={2.2} />
-          </div>
+          <img
+            src="/logo.png"
+            alt="PandaProtein"
+            className="w-8 h-8 rounded-[9px] shadow-sm border border-black/[0.06] dark:border-white/10"
+          />
           <div className="leading-tight">
             <div className="text-[14px] font-semibold tracking-[-0.015em]">PandaProtein</div>
             <div className="text-[10.5px] text-[#86868B] font-medium">
-              PDBFixer · PROPKA 3 · COOT
+              PDBFixer · PROPKA 3 · COOT · MOLE/HOLE
             </div>
           </div>
         </div>
