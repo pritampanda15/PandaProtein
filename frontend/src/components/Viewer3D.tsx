@@ -517,233 +517,236 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({
 
     // Render Realistic 3D Phospholipid Bilayer (Outer/Inner Headgroup Spheres + Dual Acyl Tails + Rim Planes)
     if (membraneOverlay) {
-      const [nx0, ny0, nz0] = membraneOverlay.normal;
-      const nLen = Math.hypot(nx0, ny0, nz0) || 1;
-      const n: [number, number, number] = [nx0 / nLen, ny0 / nLen, nz0 / nLen];
-      const [cx, cy, cz] = membraneOverlay.center;
-      const [tx, ty, tz] = membraneOverlay.top_leaflet_center;
-      const [bx, by, bz] = membraneOverlay.bottom_leaflet_center;
-      const halfT = (membraneOverlay.thickness_A || 30) / 2;
-      const rDisc = Math.max(20, Math.min(48, membraneOverlay.disc_radius_A || 28));
+      try {
+        const [nx0, ny0, nz0] = membraneOverlay.normal;
+        const nLen = Math.hypot(nx0, ny0, nz0) || 1;
+        const n: [number, number, number] = [nx0 / nLen, ny0 / nLen, nz0 / nLen];
+        const [cx, cy, cz] = membraneOverlay.center;
+        const [tx, ty, tz] = membraneOverlay.top_leaflet_center;
+        const [bx, by, bz] = membraneOverlay.bottom_leaflet_center;
+        const halfT = (membraneOverlay.thickness_A || 30) / 2;
+        const rDisc = Math.max(20, Math.min(48, membraneOverlay.disc_radius_A || 28));
 
-      // Build orthonormal basis (u, v) spanning the membrane plane perpendicular to n
-      const refAxis: [number, number, number] = Math.abs(n[0]) < 0.85 ? [1, 0, 0] : [0, 1, 0];
-      const ux0 = refAxis[1] * n[2] - refAxis[2] * n[1];
-      const uy0 = refAxis[2] * n[0] - refAxis[0] * n[2];
-      const uz0 = refAxis[0] * n[1] - refAxis[1] * n[0];
-      const uLen = Math.hypot(ux0, uy0, uz0) || 1;
-      const u: [number, number, number] = [ux0 / uLen, uy0 / uLen, uz0 / uLen];
-      const v: [number, number, number] = [
-        n[1] * u[2] - n[2] * u[1],
-        n[2] * u[0] - n[0] * u[2],
-        n[0] * u[1] - n[1] * u[0],
-      ];
+        // Build orthonormal basis (u, v) spanning the membrane plane perpendicular to n
+        const refAxis: [number, number, number] = Math.abs(n[0]) < 0.85 ? [1, 0, 0] : [0, 1, 0];
+        const ux0 = refAxis[1] * n[2] - refAxis[2] * n[1];
+        const uy0 = refAxis[2] * n[0] - refAxis[0] * n[2];
+        const uz0 = refAxis[0] * n[1] - refAxis[1] * n[0];
+        const uLen = Math.hypot(ux0, uy0, uz0) || 1;
+        const u: [number, number, number] = [ux0 / uLen, uy0 / uLen, uz0 / uLen];
+        const v: [number, number, number] = [
+          n[1] * u[2] - n[2] * u[1],
+          n[2] * u[0] - n[0] * u[2],
+          n[0] * u[1] - n[1] * u[0],
+        ];
 
-      // Collect protein heavy-atom (u, v) footprints inside the membrane slab so lipids wrap AROUND the protein!
-      const protAtoms: any[] = model.selectedAtoms({ hetflag: false, not: { elem: ['H', 'D'] } }) || [];
-      const cavityPts: Array<[number, number]> = [];
-      for (let i = 0; i < protAtoms.length; i += 2) {
-        const a = protAtoms[i];
-        const dx = a.x - cx;
-        const dy = a.y - cy;
-        const dz = a.z - cz;
-        const projN = dx * n[0] + dy * n[1] + dz * n[2];
-        if (Math.abs(projN) <= halfT + 2.5) {
-          cavityPts.push([dx * u[0] + dy * u[1] + dz * u[2], dx * v[0] + dy * v[1] + dz * v[2]]);
-        }
-      }
-
-      // Synthesize a single lightweight pseudo-PDB of coarse-grained phospholipids (headgroup P + dual acyl tails)
-      const fmtCoord = (val: number) => val.toFixed(3).padStart(8, ' ');
-      const pdbLines: string[] = [];
-      const conectLines: string[] = [];
-      let atomSerial = 1;
-      let resSeq = 1;
-
-      const addAtomLine = (
-        serial: number,
-        name: string,
-        resn: string,
-        chain: string,
-        rseq: number,
-        px: number,
-        py: number,
-        pz: number,
-        elem: string
-      ) => {
-        pdbLines.push(
-          `HETATM${String(serial).padStart(5, ' ')} ${name.padEnd(4, ' ')} ${resn.padEnd(3, ' ')} ${chain}${String(
-            rseq % 9999
-          ).padStart(4, ' ')}    ${fmtCoord(px)}${fmtCoord(py)}${fmtCoord(pz)}  1.00 20.00          ${elem.padStart(2, ' ')}`
-        );
-      };
-
-      const spacing = 5.4;
-      const rowStep = spacing * 0.866;
-      const clearSq = 4.6 * 4.6;
-      const maxLipidsPerLeaflet = 150;
-      let lipidCount = 0;
-
-      const gridSites: Array<[number, number]> = [];
-      for (let row = -Math.ceil(rDisc / rowStep); row <= Math.ceil(rDisc / rowStep); row++) {
-        const gv = row * rowStep;
-        const xOffset = (row & 1) ? spacing * 0.5 : 0;
-        for (let col = -Math.ceil(rDisc / spacing); col <= Math.ceil(rDisc / spacing); col++) {
-          const gu = col * spacing + xOffset;
-          if (gu * gu + gv * gv > (rDisc - 1.5) * (rDisc - 1.5)) continue;
-          // Carve out transmembrane protein footprint so lipids hug the protein cleanly
-          let blocked = false;
-          for (let k = 0; k < cavityPts.length; k++) {
-            const du = gu - cavityPts[k][0];
-            const dv = gv - cavityPts[k][1];
-            if (du * du + dv * dv < clearSq) {
-              blocked = true;
-              break;
-            }
+        // Collect protein heavy-atom (u, v) footprints inside the membrane slab so lipids wrap AROUND the protein!
+        const protAtoms: any[] =
+          typeof model.selectedAtoms === 'function'
+            ? model.selectedAtoms({ hetflag: false, not: { elem: ['H', 'D'] } }) || []
+            : [];
+        const cavityPts: Array<[number, number]> = [];
+        for (let i = 0; i < protAtoms.length; i += 2) {
+          const a = protAtoms[i];
+          const dx = a.x - cx;
+          const dy = a.y - cy;
+          const dz = a.z - cz;
+          const projN = dx * n[0] + dy * n[1] + dz * n[2];
+          if (Math.abs(projN) <= halfT + 2.5) {
+            cavityPts.push([dx * u[0] + dy * u[1] + dz * u[2], dx * v[0] + dy * v[1] + dz * v[2]]);
           }
-          if (!blocked) gridSites.push([gu, gv]);
         }
-      }
 
-      // If a very large membrane patch has > maxLipidsPerLeaflet sites, uniformly subsample
-      const stride = Math.max(1, Math.ceil(gridSites.length / maxLipidsPerLeaflet));
-      for (let idx = 0; idx < gridSites.length; idx += stride) {
-        const [gu, gv] = gridSites[idx];
-        lipidCount++;
-        // Deterministic subtle natural wiggle for acyl chains
-        const phase = (gu * 0.73 + gv * 1.19) % 6.28;
-        const wx = Math.cos(phase) * 0.75;
-        const wy = Math.sin(phase) * 0.75;
+        // Synthesize a single lightweight pseudo-PDB of coarse-grained phospholipids (headgroup P + dual acyl tails)
+        const fmtCoord = (val: number) =>
+          (Math.abs(val) >= 999 ? val.toFixed(2) : val.toFixed(3)).padStart(8, ' ');
+        const pdbLines: string[] = [];
+        const conectLines: string[] = [];
+        let atomSerial = 1;
+        let resSeq = 1;
 
-        for (const side of [1, -1] as const) {
-          const resn = side === 1 ? 'LOU' : 'LIN'; // Outer vs Inner Leaflet
-          const chId = side === 1 ? 'U' : 'L';
-          const dir = -side; // tails point INWARD toward the bilayer midplane!
+        const addAtomLine = (
+          serial: number,
+          name: string,
+          resn: string,
+          chain: string,
+          rseq: number,
+          px: number,
+          py: number,
+          pz: number,
+          elem: string
+        ) => {
+          pdbLines.push(
+            `HETATM${String(serial).padStart(5, ' ')} ${name.padEnd(4, ' ')} ${resn.padEnd(3, ' ')} ${chain}${String(
+              rseq % 9999
+            ).padStart(4, ' ')}    ${fmtCoord(px)}${fmtCoord(py)}${fmtCoord(pz)}  1.00 20.00          ${elem.padStart(2, ' ')}`
+          );
+        };
 
-          const toWorld = (lu: number, lv: number, ln: number): [number, number, number] => [
-            cx + u[0] * lu + v[0] * lv + n[0] * ln,
-            cy + u[1] * lu + v[1] * lv + n[1] * ln,
-            cz + u[2] * lu + v[2] * lv + n[2] * ln,
-          ];
+        const spacing = 5.4;
+        const rowStep = spacing * 0.866;
+        const clearSq = 4.6 * 4.6;
+        const maxLipidsPerLeaflet = 150;
+        let lipidCount = 0;
 
-          const pHead = toWorld(gu, gv, side * halfT);
-          const pA1 = toWorld(gu + 0.9, gv + 0.3, side * (halfT - 3.6));
-          const pA2 = toWorld(gu + 0.9 + wx, gv + 0.3 + wy, side * (halfT - 7.8));
-          const pA3 = toWorld(gu + 0.7 - wx * 0.5, gv + 0.4 + wy * 0.5, side * (halfT - 12.2));
-
-          const pB1 = toWorld(gu - 0.9, gv - 0.3, side * (halfT - 3.6));
-          const pB2 = toWorld(gu - 0.9 - wx, gv - 0.3 - wy, side * (halfT - 7.8));
-          const pB3 = toWorld(gu - 0.7 + wx * 0.5, gv - 0.4 - wy * 0.5, side * (halfT - 12.2));
-          void dir;
-
-          const s0 = atomSerial++;
-          const s1 = atomSerial++;
-          const s2 = atomSerial++;
-          const s3 = atomSerial++;
-          const s4 = atomSerial++;
-          const s5 = atomSerial++;
-          const s6 = atomSerial++;
-
-          addAtomLine(s0, 'P', resn, chId, resSeq, pHead[0], pHead[1], pHead[2], 'P');
-          addAtomLine(s1, 'C1', resn, chId, resSeq, pA1[0], pA1[1], pA1[2], 'C');
-          addAtomLine(s2, 'C2', resn, chId, resSeq, pA2[0], pA2[1], pA2[2], 'C');
-          addAtomLine(s3, 'C3', resn, chId, resSeq, pA3[0], pA3[1], pA3[2], 'C');
-          addAtomLine(s4, 'C4', resn, chId, resSeq, pB1[0], pB1[1], pB1[2], 'C');
-          addAtomLine(s5, 'C5', resn, chId, resSeq, pB2[0], pB2[1], pB2[2], 'C');
-          addAtomLine(s6, 'C6', resn, chId, resSeq, pB3[0], pB3[1], pB3[2], 'C');
-
-          conectLines.push(`CONECT${String(s0).padStart(5, ' ')}${String(s1).padStart(5, ' ')}${String(s4).padStart(5, ' ')}`);
-          conectLines.push(`CONECT${String(s1).padStart(5, ' ')}${String(s2).padStart(5, ' ')}`);
-          conectLines.push(`CONECT${String(s2).padStart(5, ' ')}${String(s3).padStart(5, ' ')}`);
-          conectLines.push(`CONECT${String(s4).padStart(5, ' ')}${String(s5).padStart(5, ' ')}`);
-          conectLines.push(`CONECT${String(s5).padStart(5, ' ')}${String(s6).padStart(5, ' ')}`);
-          resSeq++;
+        const gridSites: Array<[number, number]> = [];
+        for (let row = -Math.ceil(rDisc / rowStep); row <= Math.ceil(rDisc / rowStep); row++) {
+          const gv = row * rowStep;
+          const xOffset = (row & 1) ? spacing * 0.5 : 0;
+          for (let col = -Math.ceil(rDisc / spacing); col <= Math.ceil(rDisc / spacing); col++) {
+            const gu = col * spacing + xOffset;
+            if (gu * gu + gv * gv > (rDisc - 1.5) * (rDisc - 1.5)) continue;
+            // Carve out transmembrane protein footprint so lipids hug the protein cleanly
+            let blocked = false;
+            for (let k = 0; k < cavityPts.length; k++) {
+              const du = gu - cavityPts[k][0];
+              const dv = gv - cavityPts[k][1];
+              if (du * du + dv * dv < clearSq) {
+                blocked = true;
+                break;
+              }
+            }
+            if (!blocked) gridSites.push([gu, gv]);
+          }
         }
-      }
 
-      if (lipidCount > 0) {
-        const lipidModel = viewer.addModel([...pdbLines, ...conectLines, 'END'].join('\n'), 'pdb');
-        // Polar phosphate headgroups: warm orange-gold (outer leaflet) & crisp sky-blue (inner leaflet)
-        lipidModel.setStyle(
-          { resn: 'LOU', atom: 'P' },
-          { sphere: { radius: 1.45, color: '#FF9500', opacity: 0.84 } }
-        );
-        lipidModel.setStyle(
-          { resn: 'LIN', atom: 'P' },
-          { sphere: { radius: 1.45, color: '#38BDF8', opacity: 0.84 } }
-        );
-        // Hydrophobic dual acyl tails pointing into the bilayer core
-        lipidModel.setStyle(
-          { resn: ['LOU', 'LIN'], elem: 'C' },
-          { stick: { radius: 0.24, color: darkMode ? '#CBD5E1' : '#94A3B8', opacity: 0.34 } }
-        );
-        // Connect headgroup P to acyl ester stems subtly
-        lipidModel.addStyle(
-          { resn: 'LOU', atom: 'P' },
-          { stick: { radius: 0.24, color: '#F59E0B', opacity: 0.38 } }
-        );
-        lipidModel.addStyle(
-          { resn: 'LIN', atom: 'P' },
-          { stick: { radius: 0.24, color: '#38BDF8', opacity: 0.38 } }
-        );
-      }
+        // Uniformly subsample if patch is very large
+        const stride = Math.max(1, Math.ceil(gridSites.length / maxLipidsPerLeaflet));
+        for (let idx = 0; idx < gridSites.length; idx += stride) {
+          const [gu, gv] = gridSites[idx];
+          lipidCount++;
+          const phase = (gu * 0.73 + gv * 1.19) % 6.28;
+          const wx = Math.cos(phase) * 0.75;
+          const wy = Math.sin(phase) * 0.75;
 
-      // Draw crisp outer & inner leaflet perimeter rings (thin tubular hoops, zero spherical balloons!)
-      const ringSegs = 40;
-      for (const [leafCenter, ringCol] of [
-        [[tx, ty, tz] as [number, number, number], '#FF9500'],
-        [[bx, by, bz] as [number, number, number], '#38BDF8'],
-      ] as const) {
-        for (let k = 0; k < ringSegs; k++) {
-          const a1 = (2 * Math.PI * k) / ringSegs;
-          const a2 = (2 * Math.PI * (k + 1)) / ringSegs;
-          const p1 = {
-            x: leafCenter[0] + (u[0] * Math.cos(a1) + v[0] * Math.sin(a1)) * rDisc,
-            y: leafCenter[1] + (u[1] * Math.cos(a1) + v[1] * Math.sin(a1)) * rDisc,
-            z: leafCenter[2] + (u[2] * Math.cos(a1) + v[2] * Math.sin(a1)) * rDisc,
-          };
-          const p2 = {
-            x: leafCenter[0] + (u[0] * Math.cos(a2) + v[0] * Math.sin(a2)) * rDisc,
-            y: leafCenter[1] + (u[1] * Math.cos(a2) + v[1] * Math.sin(a2)) * rDisc,
-            z: leafCenter[2] + (u[2] * Math.cos(a2) + v[2] * Math.sin(a2)) * rDisc,
-          };
-          viewer.addCylinder({
-            start: p1,
-            end: p2,
-            radius: 0.28,
-            color: ringCol,
-            opacity: 0.72,
-            fromCap: 0,
-            toCap: 0,
+          for (const side of [1, -1] as const) {
+            const resn = side === 1 ? 'LOU' : 'LIN'; // Outer vs Inner Leaflet
+            const chId = side === 1 ? 'U' : 'L';
+
+            const toWorld = (lu: number, lv: number, ln: number): [number, number, number] => [
+              cx + u[0] * lu + v[0] * lv + n[0] * ln,
+              cy + u[1] * lu + v[1] * lv + n[1] * ln,
+              cz + u[2] * lu + v[2] * lv + n[2] * ln,
+            ];
+
+            const pHead = toWorld(gu, gv, side * halfT);
+            const pA1 = toWorld(gu + 0.9, gv + 0.3, side * (halfT - 3.6));
+            const pA2 = toWorld(gu + 0.9 + wx, gv + 0.3 + wy, side * (halfT - 7.8));
+            const pA3 = toWorld(gu + 0.7 - wx * 0.5, gv + 0.4 + wy * 0.5, side * (halfT - 12.2));
+
+            const pB1 = toWorld(gu - 0.9, gv - 0.3, side * (halfT - 3.6));
+            const pB2 = toWorld(gu - 0.9 - wx, gv - 0.3 - wy, side * (halfT - 7.8));
+            const pB3 = toWorld(gu - 0.7 + wx * 0.5, gv - 0.4 - wy * 0.5, side * (halfT - 12.2));
+
+            const s0 = atomSerial++;
+            const s1 = atomSerial++;
+            const s2 = atomSerial++;
+            const s3 = atomSerial++;
+            const s4 = atomSerial++;
+            const s5 = atomSerial++;
+            const s6 = atomSerial++;
+
+            addAtomLine(s0, 'P', resn, chId, resSeq, pHead[0], pHead[1], pHead[2], 'P');
+            addAtomLine(s1, 'C1', resn, chId, resSeq, pA1[0], pA1[1], pA1[2], 'C');
+            addAtomLine(s2, 'C2', resn, chId, resSeq, pA2[0], pA2[1], pA2[2], 'C');
+            addAtomLine(s3, 'C3', resn, chId, resSeq, pA3[0], pA3[1], pA3[2], 'C');
+            addAtomLine(s4, 'C4', resn, chId, resSeq, pB1[0], pB1[1], pB1[2], 'C');
+            addAtomLine(s5, 'C5', resn, chId, resSeq, pB2[0], pB2[1], pB2[2], 'C');
+            addAtomLine(s6, 'C6', resn, chId, resSeq, pB3[0], pB3[1], pB3[2], 'C');
+
+            conectLines.push(`CONECT${String(s0).padStart(5, ' ')}${String(s1).padStart(5, ' ')}${String(s4).padStart(5, ' ')}`);
+            conectLines.push(`CONECT${String(s1).padStart(5, ' ')}${String(s2).padStart(5, ' ')}`);
+            conectLines.push(`CONECT${String(s2).padStart(5, ' ')}${String(s3).padStart(5, ' ')}`);
+            conectLines.push(`CONECT${String(s4).padStart(5, ' ')}${String(s5).padStart(5, ' ')}`);
+            conectLines.push(`CONECT${String(s5).padStart(5, ' ')}${String(s6).padStart(5, ' ')}`);
+            resSeq++;
+          }
+        }
+
+        if (lipidCount > 0) {
+          const lipidModel = viewer.addModel([...pdbLines, ...conectLines, 'END'].join('\n'), 'pdb', {
+            assignBonds: false,
           });
+          // Combine sphere + stick inside single setStyle calls (GLModel does NOT have addStyle!)
+          lipidModel.setStyle(
+            { resn: 'LOU', atom: 'P' },
+            {
+              sphere: { radius: 1.45, color: '#FF9500', opacity: 0.85 },
+              stick: { radius: 0.24, color: '#F59E0B', opacity: 0.42 },
+            }
+          );
+          lipidModel.setStyle(
+            { resn: 'LIN', atom: 'P' },
+            {
+              sphere: { radius: 1.45, color: '#38BDF8', opacity: 0.85 },
+              stick: { radius: 0.24, color: '#38BDF8', opacity: 0.42 },
+            }
+          );
+          lipidModel.setStyle(
+            { resn: ['LOU', 'LIN'], elem: 'C' },
+            { stick: { radius: 0.22, color: darkMode ? '#CBD5E1' : '#94A3B8', opacity: 0.36 } }
+          );
         }
-      }
 
-      // Place clean leaflet labels on the outer rim so they never overlap the protein
-      viewer.addLabel(
-        `Outer Leaflet (+${halfT.toFixed(0)} Å)`,
-        {
-          font: '-apple-system, sans-serif',
-          fontSize: 11,
-          fontColor: '#FFFFFF',
-          backgroundColor: 'rgba(255, 149, 0, 0.90)',
-          borderRadius: 6,
-          inFront: true,
-        },
-        { x: tx + u[0] * rDisc, y: ty + u[1] * rDisc, z: tz + u[2] * rDisc }
-      );
-      viewer.addLabel(
-        `Inner Leaflet (−${halfT.toFixed(0)} Å)`,
-        {
-          font: '-apple-system, sans-serif',
-          fontSize: 11,
-          fontColor: '#FFFFFF',
-          backgroundColor: 'rgba(0, 122, 255, 0.90)',
-          borderRadius: 6,
-          inFront: true,
-        },
-        { x: bx + u[0] * rDisc, y: by + u[1] * rDisc, z: bz + u[2] * rDisc }
-      );
+        // Draw crisp outer & inner leaflet perimeter rings (thin tubular hoops)
+        const ringSegs = 40;
+        for (const [leafCenter, ringCol] of [
+          [[tx, ty, tz] as [number, number, number], '#FF9500'],
+          [[bx, by, bz] as [number, number, number], '#38BDF8'],
+        ] as const) {
+          for (let k = 0; k < ringSegs; k++) {
+            const a1 = (2 * Math.PI * k) / ringSegs;
+            const a2 = (2 * Math.PI * (k + 1)) / ringSegs;
+            const p1 = {
+              x: leafCenter[0] + (u[0] * Math.cos(a1) + v[0] * Math.sin(a1)) * rDisc,
+              y: leafCenter[1] + (u[1] * Math.cos(a1) + v[1] * Math.sin(a1)) * rDisc,
+              z: leafCenter[2] + (u[2] * Math.cos(a1) + v[2] * Math.sin(a1)) * rDisc,
+            };
+            const p2 = {
+              x: leafCenter[0] + (u[0] * Math.cos(a2) + v[0] * Math.sin(a2)) * rDisc,
+              y: leafCenter[1] + (u[1] * Math.cos(a2) + v[1] * Math.sin(a2)) * rDisc,
+              z: leafCenter[2] + (u[2] * Math.cos(a2) + v[2] * Math.sin(a2)) * rDisc,
+            };
+            viewer.addCylinder({
+              start: p1,
+              end: p2,
+              radius: 0.28,
+              color: ringCol,
+              opacity: 0.72,
+              fromCap: 0,
+              toCap: 0,
+            });
+          }
+        }
+
+        // Place clean leaflet labels on the outer rim so they never overlap the protein
+        viewer.addLabel(
+          `Outer Leaflet (+${halfT.toFixed(0)} Å)`,
+          {
+            font: '-apple-system, sans-serif',
+            fontSize: 11,
+            fontColor: '#FFFFFF',
+            backgroundColor: 'rgba(255, 149, 0, 0.90)',
+            borderRadius: 6,
+            inFront: true,
+          },
+          { x: tx + u[0] * rDisc, y: ty + u[1] * rDisc, z: tz + u[2] * rDisc }
+        );
+        viewer.addLabel(
+          `Inner Leaflet (−${halfT.toFixed(0)} Å)`,
+          {
+            font: '-apple-system, sans-serif',
+            fontSize: 11,
+            fontColor: '#FFFFFF',
+            backgroundColor: 'rgba(0, 122, 255, 0.90)',
+            borderRadius: 6,
+            inFront: true,
+          },
+          { x: bx + u[0] * rDisc, y: by + u[1] * rDisc, z: bz + u[2] * rDisc }
+        );
+      } catch (err) {
+        console.error('3D Lipid Bilayer render error:', err);
+      }
     }
 
     // Render 2-Click Distance Ruler Measurements & Pending Anchor
