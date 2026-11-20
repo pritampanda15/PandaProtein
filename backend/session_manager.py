@@ -6,6 +6,7 @@ Every structural modification pushes a checkpoint with a human-readable audit lo
 from __future__ import annotations
 
 import json
+import os
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -14,7 +15,9 @@ from typing import Any, Dict, List, Optional
 
 import gemmi
 
-_SESSIONS_DIR = Path(__file__).resolve().parent.parent / ".pdbprep_sessions"
+_SESSIONS_DIR = Path(
+    os.environ.get("PANDAPROTEIN_SESSION_DIR") or (Path.home() / ".pandaprotein" / "sessions")
+)
 _SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
 
 from .engines.chemistry_data import AA_3_TO_1

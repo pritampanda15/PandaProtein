@@ -88,42 +88,55 @@
 
 ---
 
-## Quick Start
+## Quick Start (One-Command Install — No Node.js Required)
 
-### Prerequisites
-- **Python 3.10+** (tested on Python 3.13)
-- **Node.js 18+** & **npm** (for building or developing the frontend)
-- **GROMACS** *(optional, for live `gmx pdb2gmx` verification & topology generation)*
-
-### Installation
+Install **PandaProtein** directly from GitHub (Python 3.10+):
 
 ```bash
-# 1. Clone the repository
+pip install git+https://github.com/pritampanda15/PandaProtein.git
+```
+
+*(Or in an isolated tool environment with `pipx` / `uv`:)*
+```bash
+pipx install git+https://github.com/pritampanda15/PandaProtein.git
+# or: uv tool install git+https://github.com/pritampanda15/PandaProtein.git
+```
+
+Then launch the full 3D workbench with a single command — it automatically picks an open port and opens your browser:
+
+```bash
+pandaprotein
+```
+
+### CLI Options
+```bash
+pandaprotein                      # Starts on http://127.0.0.1:8000 (auto-opens browser)
+pandaprotein --port 8080          # Custom port (auto-increments if already in use)
+pandaprotein --host 0.0.0.0 --no-browser   # Remote / HPC server mode
+pandaprotein --version            # Print installed version
+```
+
+> **Optional System Engines**: For live `gmx pdb2gmx` pre-flight verification and OpenBabel ligand `.pdbqt`/`.mol2` conversion, install GROMACS and OpenBabel via Homebrew (`brew install gromacs open-babel`), Conda (`conda install -c conda-forge gromacs openbabel`), or `apt` (`sudo apt install gromacs openbabel`). PandaProtein auto-detects them when present.
+
+---
+
+### Local Developer Setup (Frontend + Backend Hot-Reload)
+
+If you want to modify the React UI or backend engines locally:
+
+```bash
 git clone https://github.com/pritampanda15/PandaProtein.git
 cd PandaProtein
 
-# 2. Set up the Python virtual environment and install backend engines
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 
-# 3. Install frontend dependencies and build the production React UI
 npm --prefix frontend install
-npm --prefix frontend run build
-```
+npm --prefix frontend run build    # compiles React UI and syncs backend/static/
 
-### Run PandaProtein
-
-```bash
 chmod +x start.sh
-./start.sh
-```
-
-Open **[http://127.0.0.1:8000](http://127.0.0.1:8000)** in your browser.
-
-For live frontend hot-reload development (FastAPI `:8000` + Vite HMR `:5173`):
-
-```bash
-./start.sh --dev
+./start.sh          # Production preview at http://127.0.0.1:8000
+./start.sh --dev    # Live hot-reload (FastAPI :8000 + Vite HMR :5173)
 ```
 
 ---

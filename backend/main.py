@@ -1051,7 +1051,9 @@ def test_gromacs_endpoint(sid: str, payload: Dict[str, Any]) -> Dict[str, Any]:
     return {"gromacs": gmx_res, "solvation": solv}
 
 
-# Mount built frontend static assets if available (production single-server mode)
-_FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
-if _FRONTEND_DIST.exists():
-    app.mount("/", StaticFiles(directory=str(_FRONTEND_DIST), html=True), name="frontend")
+# Mount built frontend static assets (prefers live dev frontend/dist, falls back to packaged backend/static)
+_DEV_FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+_PKG_FRONTEND_STATIC = Path(__file__).resolve().parent / "static"
+_FRONTEND_DIR = _DEV_FRONTEND_DIST if (_DEV_FRONTEND_DIST / "index.html").exists() else _PKG_FRONTEND_STATIC
+if (_FRONTEND_DIR / "index.html").exists():
+    app.mount("/", StaticFiles(directory=str(_FRONTEND_DIR), html=True), name="frontend")
