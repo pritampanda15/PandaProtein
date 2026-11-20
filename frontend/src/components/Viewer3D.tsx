@@ -385,18 +385,15 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({
             opacity: 0.34,
           });
         }
-        viewer.addLabel(
-          `Pocket #${pk.rank} (${pk.volume_A3} Å³)`,
-          {
-            font: '-apple-system, sans-serif',
-            fontSize: 11,
-            fontColor: '#FFFFFF',
-            backgroundColor: 'rgba(88, 86, 214, 0.88)',
-            borderRadius: 6,
-            inFront: true,
-          },
-          { x: pk.center[0], y: pk.center[1], z: pk.center[2] }
-        );
+        viewer.addLabel(`Pocket #${pk.rank} (${pk.volume_A3} Å³)`, {
+          position: { x: pk.center[0], y: pk.center[1], z: pk.center[2] },
+          font: '-apple-system, sans-serif',
+          fontSize: 11,
+          fontColor: '#FFFFFF',
+          backgroundColor: 'rgba(88, 86, 214, 0.88)',
+          borderRadius: 6,
+          inFront: true,
+        });
       });
     }
 
@@ -472,18 +469,15 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({
           color: '#FF3B30',
           opacity: 0.85,
         });
-        viewer.addLabel(
-          `${ch.id} (${ch.bottleneck_radius_A} Å)`,
-          {
-            font: '-apple-system, sans-serif',
-            fontSize: 11,
-            fontColor: '#FFFFFF',
-            backgroundColor: ch.kind === 'pore' ? 'rgba(175, 82, 222, 0.90)' : 'rgba(0, 122, 255, 0.90)',
-            borderRadius: 6,
-            inFront: true,
-          },
-          { x: bx, y: by, z: bz }
-        );
+        viewer.addLabel(`${ch.id} (${ch.bottleneck_radius_A} Å)`, {
+          position: { x: bx, y: by, z: bz },
+          font: '-apple-system, sans-serif',
+          fontSize: 11,
+          fontColor: '#FFFFFF',
+          backgroundColor: ch.kind === 'pore' ? 'rgba(175, 82, 222, 0.90)' : 'rgba(0, 122, 255, 0.90)',
+          borderRadius: 6,
+          inFront: true,
+        });
       }
     }
 
@@ -498,23 +492,20 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({
         });
       }
       const [cxH, cyH, czH] = holeData.summary.constriction_point;
-      viewer.addLabel(
-        `HOLE Gate: ${holeData.summary.min_radius_A} Å`,
-        {
-          font: '-apple-system, sans-serif',
-          fontSize: 11,
-          fontColor: '#FFFFFF',
-          backgroundColor:
-            holeData.summary.min_radius_A < 1.15
-              ? 'rgba(255, 59, 48, 0.92)'
-              : holeData.summary.min_radius_A <= 2.3
-              ? 'rgba(52, 199, 89, 0.92)'
-              : 'rgba(0, 122, 255, 0.92)',
-          borderRadius: 6,
-          inFront: true,
-        },
-        { x: cxH, y: cyH, z: czH }
-      );
+      viewer.addLabel(`HOLE Gate: ${holeData.summary.min_radius_A} Å`, {
+        position: { x: cxH, y: cyH, z: czH },
+        font: '-apple-system, sans-serif',
+        fontSize: 11,
+        fontColor: '#FFFFFF',
+        backgroundColor:
+          holeData.summary.min_radius_A < 1.15
+            ? 'rgba(255, 59, 48, 0.92)'
+            : holeData.summary.min_radius_A <= 2.3
+            ? 'rgba(52, 199, 89, 0.92)'
+            : 'rgba(0, 122, 255, 0.92)',
+        borderRadius: 6,
+        inFront: true,
+      });
     }
 
     // Render Before vs. After / Reference Superposition Ghost Overlay (translucent silver cartoon)
@@ -732,30 +723,24 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({
         }
 
         // Place clean leaflet labels on the outer rim so they never overlap the protein
-        viewer.addLabel(
-          `Outer Leaflet (+${halfT.toFixed(0)} Å)`,
-          {
-            font: '-apple-system, sans-serif',
-            fontSize: 11,
-            fontColor: '#FFFFFF',
-            backgroundColor: 'rgba(255, 149, 0, 0.90)',
-            borderRadius: 6,
-            inFront: true,
-          },
-          { x: tx + u[0] * rDisc, y: ty + u[1] * rDisc, z: tz + u[2] * rDisc }
-        );
-        viewer.addLabel(
-          `Inner Leaflet (−${halfT.toFixed(0)} Å)`,
-          {
-            font: '-apple-system, sans-serif',
-            fontSize: 11,
-            fontColor: '#FFFFFF',
-            backgroundColor: 'rgba(0, 122, 255, 0.90)',
-            borderRadius: 6,
-            inFront: true,
-          },
-          { x: bx + u[0] * rDisc, y: by + u[1] * rDisc, z: bz + u[2] * rDisc }
-        );
+        viewer.addLabel(`Outer Leaflet (+${halfT.toFixed(0)} Å)`, {
+          position: { x: tx + u[0] * rDisc, y: ty + u[1] * rDisc, z: tz + u[2] * rDisc },
+          font: '-apple-system, sans-serif',
+          fontSize: 11,
+          fontColor: '#FFFFFF',
+          backgroundColor: 'rgba(255, 149, 0, 0.90)',
+          borderRadius: 6,
+          inFront: true,
+        });
+        viewer.addLabel(`Inner Leaflet (−${halfT.toFixed(0)} Å)`, {
+          position: { x: bx + u[0] * rDisc, y: by + u[1] * rDisc, z: bz + u[2] * rDisc },
+          font: '-apple-system, sans-serif',
+          fontSize: 11,
+          fontColor: '#FFFFFF',
+          backgroundColor: 'rgba(0, 122, 255, 0.90)',
+          borderRadius: 6,
+          inFront: true,
+        });
       } catch (err) {
         console.error('3D Lipid Bilayer render error:', err);
       }
@@ -765,59 +750,55 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({
     if (pendingAtom) {
       viewer.addSphere({
         center: { x: pendingAtom.pos[0], y: pendingAtom.pos[1], z: pendingAtom.pos[2] },
-        radius: 0.48,
+        radius: 0.52,
         color: '#FFCC00',
-        opacity: 0.9,
+        opacity: 0.95,
       });
-      viewer.addLabel(
-        `Start: ${pendingAtom.label}`,
-        {
-          font: '-apple-system, sans-serif',
-          fontSize: 11,
-          fontColor: '#1D1D1F',
-          backgroundColor: 'rgba(255, 204, 0, 0.95)',
-          borderRadius: 6,
-          inFront: true,
-        },
-        { x: pendingAtom.pos[0], y: pendingAtom.pos[1], z: pendingAtom.pos[2] }
-      );
+      viewer.addLabel(`Start: ${pendingAtom.label}`, {
+        position: { x: pendingAtom.pos[0], y: pendingAtom.pos[1], z: pendingAtom.pos[2] },
+        font: '-apple-system, sans-serif',
+        fontSize: 12,
+        fontColor: '#1D1D1F',
+        backgroundColor: 'rgba(255, 204, 0, 0.96)',
+        backgroundOpacity: 0.96,
+        borderRadius: 6,
+        inFront: true,
+      });
     }
     for (const m of measurements) {
       viewer.addCylinder({
         start: { x: m.p1[0], y: m.p1[1], z: m.p1[2] },
         end: { x: m.p2[0], y: m.p2[1], z: m.p2[2] },
-        radius: 0.10,
+        radius: 0.14,
         dashed: true,
         color: '#FF9500',
       });
       viewer.addSphere({
         center: { x: m.p1[0], y: m.p1[1], z: m.p1[2] },
-        radius: 0.30,
+        radius: 0.36,
         color: '#FF9500',
-        opacity: 0.9,
+        opacity: 0.95,
       });
       viewer.addSphere({
         center: { x: m.p2[0], y: m.p2[1], z: m.p2[2] },
-        radius: 0.30,
+        radius: 0.36,
         color: '#FF9500',
-        opacity: 0.9,
+        opacity: 0.95,
       });
-      viewer.addLabel(
-        `${m.dist.toFixed(2)} Å`,
-        {
-          font: '-apple-system, monospace',
-          fontSize: 12,
-          fontColor: '#FFFFFF',
-          backgroundColor: 'rgba(255, 149, 0, 0.94)',
-          borderRadius: 6,
-          inFront: true,
-        },
-        {
+      viewer.addLabel(`${m.dist.toFixed(2)} Å`, {
+        position: {
           x: (m.p1[0] + m.p2[0]) / 2,
           y: (m.p1[1] + m.p2[1]) / 2,
           z: (m.p1[2] + m.p2[2]) / 2,
-        }
-      );
+        },
+        font: '-apple-system, monospace',
+        fontSize: 13,
+        fontColor: '#FFFFFF',
+        backgroundColor: 'rgba(255, 149, 0, 0.96)',
+        backgroundOpacity: 0.96,
+        borderRadius: 7,
+        inFront: true,
+      });
     }
 
     // Click handler: either 2-Click Distance Ruler OR COOT Residue Selection
@@ -994,26 +975,44 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({
           if (cyl) dockingShapesRef.current.push(cyl);
         }
 
+        // Allow 2-Click Distance Ruler to pick atoms directly on the live docked ligand too!
+        ligModel.setClickable({}, true, (atom: any) => {
+          if (!atom || !measureModeRef.current) return;
+          const pos: [number, number, number] = [Number(atom.x), Number(atom.y), Number(atom.z)];
+          const label = `LIG.${atom.atom || atom.elem}`;
+          const prev = pendingAtomRef.current;
+          if (!prev) {
+            setPendingAtom({ label, pos });
+          } else {
+            const dx = pos[0] - prev.pos[0];
+            const dy = pos[1] - prev.pos[1];
+            const dz = pos[2] - prev.pos[2];
+            const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+            setMeasurements((cur) => [
+              ...cur,
+              { id: Date.now(), label1: prev.label, label2: label, p1: prev.pos, p2: pos, dist },
+            ]);
+            setPendingAtom(null);
+          }
+        });
+
         if (dockingOverlay.score !== null && dockingOverlay.score !== undefined) {
           const lblText =
             dockingOverlay.label ||
             `${dockingOverlay.isNewBest ? '★ NEW BEST ' : ''}ΔG = ${dockingOverlay.score.toFixed(2)} kcal/mol`;
-          const lb = viewer.addLabel(
-            lblText,
-            {
-              font: '-apple-system, monospace',
-              fontSize: 12,
-              fontColor: '#FFFFFF',
-              backgroundColor: dockingOverlay.isNewBest
-                ? 'rgba(52, 199, 89, 0.94)'
-                : dockingOverlay.running
-                ? 'rgba(0, 122, 255, 0.92)'
-                : 'rgba(88, 86, 214, 0.92)',
-              borderRadius: 8,
-              inFront: true,
-            },
-            { x: bx, y: by + sy / 2 + 1.4, z: bz }
-          );
+          const lb = viewer.addLabel(lblText, {
+            position: { x: bx, y: by + sy / 2 + 1.4, z: bz },
+            font: '-apple-system, monospace',
+            fontSize: 12,
+            fontColor: '#FFFFFF',
+            backgroundColor: dockingOverlay.isNewBest
+              ? 'rgba(52, 199, 89, 0.94)'
+              : dockingOverlay.running
+              ? 'rgba(0, 122, 255, 0.92)'
+              : 'rgba(88, 86, 214, 0.92)',
+            borderRadius: 8,
+            inFront: true,
+          });
           if (lb) dockingLabelsRef.current.push(lb);
         }
       }
@@ -1311,6 +1310,49 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({
 
       {/* 3Dmol WebGL Canvas */}
       <div ref={containerRef} className="w-full h-full min-h-[300px]" />
+
+      {/* Floating Distance Measurements Readout Card (whenever 1+ distances measured) */}
+      {measurements.length > 0 && (
+        <div className="absolute bottom-12 left-3 z-20 max-w-xs apple-glass rounded-2xl p-2.5 shadow-apple-lg border border-[#FF9500]/30 space-y-1 text-[11px]">
+          <div className="flex items-center justify-between gap-3 font-semibold text-[#B26200] dark:text-[#FF9F0A]">
+            <span className="flex items-center gap-1">
+              <Ruler className="w-3.5 h-3.5" />
+              Measured Distances ({measurements.length})
+            </span>
+            <button
+              onClick={() => {
+                setMeasurements([]);
+                setPendingAtom(null);
+              }}
+              className="text-[10px] underline hover:opacity-80"
+            >
+              Clear All
+            </button>
+          </div>
+          <div className="max-h-32 overflow-y-auto space-y-1 font-mono">
+            {measurements.map((m) => (
+              <div
+                key={m.id}
+                className="flex items-center justify-between gap-2 px-2 py-1 rounded-lg bg-black/[0.04] dark:bg-white/[0.06]"
+              >
+                <span className="truncate text-[10.5px]">
+                  {m.label1} ↔ {m.label2}
+                </span>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="font-bold text-[#FF9500]">{m.dist.toFixed(2)} Å</span>
+                  <button
+                    onClick={() => setMeasurements((cur) => cur.filter((x) => x.id !== m.id))}
+                    className="p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10"
+                    title="Remove measurement"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Bottom Status Pill */}
       <div className="absolute bottom-3 left-3 right-3 z-10 flex items-center justify-between gap-2 pointer-events-none">
