@@ -1024,21 +1024,34 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({
     }
   }, [dockingOverlay, sceneVersion, darkMode]);
 
-  // Smooth camera zoom directly into the active 3D Docking Grid Box
+  // Smooth camera zoom directly into the active 3D Docking Grid Box (using exact predicate so protein never flies off-screen!)
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer || !dockingOverlay || dockingFocusTrigger === 0) return;
     try {
       const [bx, by, bz] = dockingOverlay.boxCenter;
-      const rad = Math.max(...dockingOverlay.boxSize) * 0.55;
-      viewer.zoomTo({ within: { distance: rad, sel: { x: bx, y: by, z: bz } } }, 450);
+      const rad = Math.max(...dockingOverlay.boxSize) * 0.65 + 4.0;
+      const radSq = rad * rad;
+      const pocketSel = {
+        model: 0,
+        predicate: (atom: any) => {
+          const dx = atom.x - bx;
+          const dy = atom.y - by;
+          const dz = atom.z - bz;
+          return dx * dx + dy * dy + dz * dz <= radSq;
+        },
+      };
+      const matched = typeof viewer.selectedAtoms === 'function' ? viewer.selectedAtoms(pocketSel) : [];
+      if (matched && matched.length > 0) {
+        viewer.zoomTo(pocketSel, 420);
+      } else {
+        viewer.zoomTo({ model: 0 }, 380);
+      }
       viewer.render();
     } catch {
       try {
-        if (dockingModelRef.current) {
-          viewer.zoomTo({ model: dockingModelRef.current }, 450);
-          viewer.render();
-        }
+        viewer.zoomTo({ model: 0 }, 380);
+        viewer.render();
       } catch {
         // ignore
       }
