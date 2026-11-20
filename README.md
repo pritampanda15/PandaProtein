@@ -58,6 +58,7 @@
 
 ### 5. RDKit Ligands, Metals & 3D Druggable Binding Pocket Finder
 - RDKit 2D vector SVG depictions, SMILES, Lipinski Rule-of-5 properties (MW, cLogP, TPSA, HBD/HBA, rotatable bonds), and **ETKDGv3 + MMFF94** 3D conformer generation (`.sdf`).
+- **Native Binding Site Grid Coordinates & 1-Click Redock**: Every bound X-ray ligand displays its exact native `Center (X, Y, Z) Å` and `Box (W×H×D Å)` with a **Redock in Live 3D** button that extracts the ligand, locks the grid box, opens the pocket, and reports **X-Ray Crystal RMSD (Å)** on every docked mode.
 - **Complete Docking & MD Ligand Preparation**: 1-click export of every co-crystallized ligand as **AutoDock Vina/GNINA `.pdbqt`** (with `ROOT`/`BRANCH`/`TORSDOF` rotatable torsion tree & Gasteiger charges), **Tripos `.mol2`** (Sybyl atom types + Gasteiger charges for CGenFF/ACPYPE/AnteChamber), `.sdf`, or `.pdb` protonated at the active PROPKA pH.
 - 3D binding pocket contact mapping (H-bonds, hydrophobic contacts, metal coordination spheres).
 - Built-in **3D Druggable Cavity Detector** (volume in $\text{Å}^3$, druggability score, hydrophobic %, lining residues, translucent 3D pocket cloud overlay, and automatic AutoDock Vina grid boxes for apo proteins).
@@ -73,9 +74,9 @@
 - **Non-Covalent Interaction Networks**: Automated detection of **Salt Bridges** (intra- & inter-chain), **Aromatic $\pi\text{–}\pi$ Stacking** (parallel-displaced & T-shaped), and **Inter-Chain Interface Contacts**.
 
 ### 8. Live Real-Time 3D Molecular Docking Studio (`Live 3D Docking`)
-- **4-Step Apple Guided Workflow**: **1. Prepare Receptor** (PDBFixer + COOT + PROPKA Polar H + 1-click Open Pocket) → **2. Upload or Enter Ligand** (`.sdf`, `.mol2`, `.pdb`, `.pdbqt`, SMILES, 1-click benchmark drugs like *Nirmatrelvir/Paxlovid*, or extract co-crystallized ligand for redocking; auto-protonated with RDKit **ETKDGv3 + MMFF94** multi-conformer generation & 2D SVG preview) → **3. Interactive 3D Grid Box** (auto-center on ligand/pockets + live X/Y/Z sliders) → **4. Watch Docking Live in 3D**.
+- **4-Step Apple Guided Workflow**: **1. Prepare Receptor** (PDBFixer + COOT + PROPKA Polar H + 1-click Open Pocket) → **2. Upload or Enter Ligand** (`.sdf`, `.mol2`, `.pdb`, `.pdbqt`, SMILES, 1-click benchmark drugs like *Nirmatrelvir/Paxlovid*, or **1-Click Redock Setup** directly from any bound X-ray ligand with automatic crystal coordinates & **X-Ray Redock RMSD** validation; auto-protonated with RDKit **ETKDGv3 + MMFF94** multi-conformer generation & 2D SVG preview) → **3. Interactive 3D Grid Box** (auto-center on bound ligands/pockets + live X/Y/Z sliders + Focus Grid in 3D) → **4. Watch Docking Live in 3D**.
 - **Real-Time SSE Streaming Physics**: Implements AutoDock Vina's exact 6-term scoring function (*Trott & Olson 2010*: `Gauss1`, `Gauss2`, `Repulsion`, `Hydrophobic`, `H-Bond`, `N_rot` torsional entropy) across Global Grid Exploration, Metropolis Simulated Annealing, and Local 6-DOF Minimization, streaming live 3D poses at 60 FPS with zero protein flicker!
-- **Live Visual Action & Energy Telemetry**: Watch the ligand explore the glowing 3D grid box, flash cyan **Hydrogen Bonds** and red **Steric Clashes** in real time, track the live SVG **$\Delta G$ (kcal/mol) descent curve** and **6-term energy decomposition bars**, scrub/replay the recorded docking movie, inspect the **Top 9 Ranked Binding Modes** (with estimated $K_i$), optionally cross-verify with local `vina` CLI, and export the **Docked Complex `.pdb`** or **Multi-Pose `.sdf`**.
+- **Live Visual Action & Energy Telemetry**: Watch the ligand explore the glowing 3D grid box, flash cyan **Hydrogen Bonds** and red **Steric Clashes** in real time, track the live SVG **$\Delta G$ (kcal/mol) descent curve** and **6-term energy decomposition bars**, scrub/replay the recorded docking movie, inspect the **Top 9 Ranked Binding Modes** (with estimated $K_i$ & Crystal RMSD), optionally cross-verify with local `vina` CLI, and export the **Docked Complex `.pdb`** or **Multi-Pose `.sdf`**.
 
 ### 9. Multi-Target Export Studio, Live GROMACS Verification & Batch Prep Queue
 - Supports **PDB** (`.pdb`), **mmCIF** (`.cif`), **GROMACS `.gro`** (both **import & export** with nm conversion and box vectors), **RCSB PDB ID fetch**, and **AlphaFold DB UniProt fetch** — ships with **SARS-CoV-2 $\text{M}^\text{pro}$ (`6LU7`)** bundled locally as the instant default structure.
@@ -87,9 +88,9 @@
 - **Batch Multi-Structure Preparation Queue**: Drag-and-drop multiple `.pdb`/`.cif`/`.gro` files to run automated PDBFixer + COOT + PROPKA (+ optional MOLE) across an entire library, view Before → After readiness & clash audits, and download a unified **Batch ZIP** containing every prepared `.pdb`, `.gro`, `.pdbqt`, `vina_config.txt`, and `batch_summary.csv`.
 
 ### 10. Apple-Crafted 3D Workbench UX
-- Persistent **3Dmol.js** WebGL viewport (`keepH: true`) with Cartoon, Sticks, Ball & Stick, and Surface modes, QA Issues Heatmap, B-factor/pLDDT coloring, 3D Disulfide/Metal/H-Bond cylinders (`S–S/HB`), 3D Clash spheres, Pocket clouds, MOLE Tunnel tubes, Ghost Superposition, Bilayer discs, **2-Click 3D Distance Ruler (Å)**, collapsible **3D Overlay Legend**, and PNG snapshot export.
+- Persistent **3Dmol.js** WebGL viewport (`keepH: true`) with Cartoon, Sticks, Ball & Stick, and Surface modes, QA Issues Heatmap, B-factor/pLDDT coloring, 3D Disulfide/Metal/H-Bond cylinders (`S–S/HB`), 3D Clash spheres, Pocket clouds, MOLE Tunnel tubes, HOLE R/G/B Pore surface, Ghost Superposition, **3D Phospholipid Bilayer**, **2-Click 3D Distance Ruler (Å)** (works across both receptor & live docked ligand atoms with midpoint badges + floating Measured Distances HUD), **Reframe (`R`)** camera reset, collapsible **3D Overlay Legend**, and PNG snapshot export.
 - Interactive **1-Letter Sequence Ribbon Strip** docked above the 3D viewport.
-- **Apple Spotlight Command Palette (`⌘K`)** to jump straight to any residue (`HIS 18`, `A:41`), chain, ligand, or action; **`⌘Z` / `⌘⇧Z`** Undo/Redo; **Light & Dark Mode**; and disk-persisted sessions.
+- **Apple Spotlight Command Palette (`⌘K`)** to jump straight to any residue (`HIS 18`, `A:41`), chain, ligand, or action; **`⌘Z` / `⌘⇧Z`** Undo/Redo; **Light & Dark Mode**; and disk-persisted sessions in `~/.pandaprotein/sessions`.
 
 ---
 
@@ -150,10 +151,15 @@ chmod +x start.sh
 
 ```text
 PandaProtein/
+├── pyproject.toml                   # PEP 621 package config (`pip install` + `pandaprotein` CLI)
+├── assets/
+│   └── pandaprotein_logo.png        # 512×512 transparent macOS squircle GitHub logo
 ├── backend/
-│   ├── main.py                      # FastAPI REST API + static UI serving
+│   ├── cli.py                       # `pandaprotein` CLI launcher (auto-port + browser open)
+│   ├── main.py                      # FastAPI REST & SSE API + static UI serving
 │   ├── models.py                    # Pydantic request/response schemas
-│   ├── session_manager.py           # Disk-persisted sessions, Baseline diff & COOT Undo/Redo stack
+│   ├── session_manager.py           # User-home persisted sessions, Baseline diff & COOT Undo/Redo
+│   ├── static/                      # Bundled compiled React UI for zero-Node `pip install`
 │   ├── samples/
 │   │   └── 6LU7.pdb                 # Bundled default SARS-CoV-2 Mpro + N3 benchmark structure
 │   └── engines/

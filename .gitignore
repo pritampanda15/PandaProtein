@@ -17,3 +17,4 @@ frontend/dist/
 *.tsbuildinfo
 .DS_Store
 *.log
+brag-output/
