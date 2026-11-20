@@ -14,6 +14,7 @@ import {
   X,
 } from 'lucide-react';
 import type {
+  DockingLiveOverlay,
   HoleAnalysisData,
   MembraneInfo,
   MoleChannel,
@@ -53,6 +54,8 @@ interface Viewer3DProps {
   moleChannels?: MoleChannel[];
   moleColorBy?: MoleColorBy;
   holeData?: HoleAnalysisData | null;
+  dockingOverlay?: DockingLiveOverlay | null;
+  dockingFocusTrigger?: number;
   diffOverlayPdb?: string | null;
   membraneOverlay?: MembraneInfo | null;
   expanded: boolean;
@@ -74,6 +77,8 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({
   moleChannels = [],
   moleColorBy = 'id',
   holeData = null,
+  dockingOverlay = null,
+  dockingFocusTrigger = 0,
   diffOverlayPdb = null,
   membraneOverlay = null,
   expanded,
@@ -83,6 +88,10 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({
   const viewerRef = useRef<any>(null);
   const lastZoomSessionRef = useRef<string | null>(null);
   const defaultViewRef = useRef<number[] | null>(null);
+  const dockingModelRef = useRef<any>(null);
+  const dockingShapesRef = useRef<any[]>([]);
+  const dockingLabelsRef = useRef<any[]>([]);
+  const [sceneVersion, setSceneVersion] = useState(0);
 
   const [rep, setRep] = useState<RepStyle>('cartoon');
   const [colorMode, setColorMode] = useState<ColorMode>('chain');
@@ -151,6 +160,9 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({
     viewer.removeAllShapes();
     viewer.removeAllLabels();
     viewer.removeAllSurfaces();
+    dockingModelRef.current = null;
+    dockingShapesRef.current = [];
+    dockingLabelsRef.current = [];
 
     // CRITICAL: 3Dmol.js strips hydrogens by default unless { keepH: true } is passed!
     const model = viewer.addModel(session.pdb_text, 'pdb', { keepH: true });
@@ -850,6 +862,7 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({
       }
     }
     viewer.render();
+    setSceneVersion((v) => v + 1);
   }, [
     session.pdb_text,
     session.session_id,
@@ -874,6 +887,163 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({
     measurements.length,
     darkMode,
   ]);
+
+  // Dedicated zero-flicker 60-FPS WebGL layer for Live 3D Molecular Docking (ligand + grid box + live H-bonds/clashes)
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer) return;
+
+    // Remove ONLY previous docking layer artifacts without touching the receptor protein!
+    try {
+      if (dockingModelRef.current) {
+        viewer.removeModel(dockingModelRef.current);
+        dockingModelRef.current = null;
+      }
+      for (const sh of dockingShapesRef.current) {
+        viewer.removeShape(sh);
+      }
+      dockingShapesRef.current = [];
+      for (const lb of dockingLabelsRef.current) {
+        viewer.removeLabel(lb);
+      }
+      dockingLabelsRef.current = [];
+
+      if (!dockingOverlay) {
+        viewer.render();
+        return;
+      }
+
+      const [bx, by, bz] = dockingOverlay.boxCenter;
+      const [sx, sy, sz] = dockingOverlay.boxSize;
+      const boxCol = dockingOverlay.isNewBest
+        ? '#34C759'
+        : dockingOverlay.running
+        ? '#0A84FF'
+        : '#007AFF';
+
+      if (dockingOverlay.showBox) {
+        const boxShape = viewer.addBox({
+          center: { x: bx, y: by, z: bz },
+          dimensions: { w: sx, h: sy, d: sz },
+          color: boxCol,
+          wireframe: true,
+          opacity: 0.9,
+        });
+        if (boxShape) dockingShapesRef.current.push(boxShape);
+
+        // Crisp glowing corner nodes on the docking grid box
+        const hx = sx / 2;
+        const hy = sy / 2;
+        const hz = sz / 2;
+        for (const dx of [-hx, hx]) {
+          for (const dy of [-hy, hy]) {
+            for (const dz of [-hz, hz]) {
+              const sp = viewer.addSphere({
+                center: { x: bx + dx, y: by + dy, z: bz + dz },
+                radius: 0.35,
+                color: boxCol,
+                opacity: 0.85,
+              });
+              if (sp) dockingShapesRef.current.push(sp);
+            }
+          }
+        }
+      }
+
+      if (dockingOverlay.posePdb) {
+        const ligModel = viewer.addModel(dockingOverlay.posePdb, 'pdb', { keepH: true });
+        dockingModelRef.current = ligModel;
+        const ligColorScheme = dockingOverlay.isNewBest ? 'greenCarbon' : 'magentaCarbon';
+        ligModel.setStyle(
+          {},
+          {
+            stick: { radius: 0.24, colorscheme: ligColorScheme },
+            sphere: { scale: 0.26, colorscheme: ligColorScheme },
+          }
+        );
+        // Highlight polar hydrogens cleanly
+        ligModel.setStyle(
+          { elem: 'H' },
+          {
+            stick: { radius: 0.11, color: '#FFFFFF' },
+            sphere: { scale: 0.16, color: '#FFFFFF' },
+          }
+        );
+
+        // Live Hydrogen Bonds (glowing cyan dashed cylinders)
+        for (const hb of dockingOverlay.hbonds || []) {
+          const cyl = viewer.addCylinder({
+            start: { x: hb.p1[0], y: hb.p1[1], z: hb.p1[2] },
+            end: { x: hb.p2[0], y: hb.p2[1], z: hb.p2[2] },
+            radius: 0.10,
+            dashed: true,
+            color: '#00D4FF',
+          });
+          if (cyl) dockingShapesRef.current.push(cyl);
+        }
+
+        // Live Steric Clash Flashes (red dashed cylinders when trial pose clips a wall)
+        for (const cl of dockingOverlay.clashes || []) {
+          const cyl = viewer.addCylinder({
+            start: { x: cl.p1[0], y: cl.p1[1], z: cl.p1[2] },
+            end: { x: cl.p2[0], y: cl.p2[1], z: cl.p2[2] },
+            radius: 0.12,
+            dashed: true,
+            color: '#FF3B30',
+          });
+          if (cyl) dockingShapesRef.current.push(cyl);
+        }
+
+        if (dockingOverlay.score !== null && dockingOverlay.score !== undefined) {
+          const lblText =
+            dockingOverlay.label ||
+            `${dockingOverlay.isNewBest ? '★ NEW BEST ' : ''}ΔG = ${dockingOverlay.score.toFixed(2)} kcal/mol`;
+          const lb = viewer.addLabel(
+            lblText,
+            {
+              font: '-apple-system, monospace',
+              fontSize: 12,
+              fontColor: '#FFFFFF',
+              backgroundColor: dockingOverlay.isNewBest
+                ? 'rgba(52, 199, 89, 0.94)'
+                : dockingOverlay.running
+                ? 'rgba(0, 122, 255, 0.92)'
+                : 'rgba(88, 86, 214, 0.92)',
+              borderRadius: 8,
+              inFront: true,
+            },
+            { x: bx, y: by + sy / 2 + 1.4, z: bz }
+          );
+          if (lb) dockingLabelsRef.current.push(lb);
+        }
+      }
+
+      viewer.render();
+    } catch (err) {
+      console.error('Live docking 3D overlay error:', err);
+    }
+  }, [dockingOverlay, sceneVersion, darkMode]);
+
+  // Smooth camera zoom directly into the active 3D Docking Grid Box
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || !dockingOverlay || dockingFocusTrigger === 0) return;
+    try {
+      const [bx, by, bz] = dockingOverlay.boxCenter;
+      const rad = Math.max(...dockingOverlay.boxSize) * 0.55;
+      viewer.zoomTo({ within: { distance: rad, sel: { x: bx, y: by, z: bz } } }, 450);
+      viewer.render();
+    } catch {
+      try {
+        if (dockingModelRef.current) {
+          viewer.zoomTo({ model: dockingModelRef.current }, 450);
+          viewer.render();
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }, [dockingFocusTrigger]);
 
   // Smoothly zoom to highlighted chain(s) when triggered
   useEffect(() => {

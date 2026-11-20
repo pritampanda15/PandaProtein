@@ -8,6 +8,7 @@ export type NavTab =
   | 'clashes'
   | 'ligands'
   | 'tunnels'
+  | 'docking'
   | 'analysis'
   | 'batch'
   | 'export';
@@ -792,4 +793,109 @@ export interface HoleAnalysisData {
     green_fraction_pct: number;
     blue_fraction_pct: number;
   };
+}
+
+export interface DockingPresetLigand {
+  id: string;
+  name: string;
+  smiles: string;
+}
+
+export interface PreparedDockingLigand {
+  ligand_key: string;
+  name: string;
+  source: string;
+  smiles: string;
+  formula: string;
+  mw: number;
+  clogp: number;
+  tpsa: number;
+  hbd: number;
+  hba: number;
+  rotatable_bonds: number;
+  heavy_atoms: number;
+  total_atoms: number;
+  conformers_generated: number;
+  svg: string;
+  ph: number;
+  vina_available: boolean;
+}
+
+export interface DockingScoreTerms {
+  gauss1: number;
+  gauss2: number;
+  repulsion: number;
+  hydrophobic: number;
+  hbond: number;
+  torsion: number;
+}
+
+export interface DockingHBond {
+  residue: string;
+  chain: string;
+  resseq: number;
+  rec_atom: string;
+  lig_atom: string;
+  distance_A: number;
+  p1: [number, number, number];
+  p2: [number, number, number];
+}
+
+export interface DockingClash {
+  residue: string;
+  distance_A: number;
+  p1: [number, number, number];
+  p2: [number, number, number];
+}
+
+export interface DockingContact {
+  residue: string;
+  chain: string;
+  resseq: number;
+  resname: string;
+  key: string;
+  type: 'hbond' | 'hydrophobic' | 'vdw';
+  distance_A: number;
+}
+
+export interface DockingFrameEvent {
+  step: number;
+  total_steps: number;
+  phase: string;
+  temperature: number;
+  accepted: boolean;
+  is_new_best: boolean;
+  score: number;
+  best_score: number;
+  ki: string;
+  terms: DockingScoreTerms;
+  hbonds: DockingHBond[];
+  clashes: DockingClash[];
+  contacts: DockingContact[];
+  pose_pdb: string;
+}
+
+export interface DockingMode {
+  mode: number;
+  affinity_kcal_mol: number;
+  ki: string;
+  rmsd_from_best_A: number;
+  terms: DockingScoreTerms;
+  hbonds: DockingHBond[];
+  clashes: DockingClash[];
+  contacts: DockingContact[];
+  pose_pdb: string;
+}
+
+export interface DockingLiveOverlay {
+  boxCenter: [number, number, number];
+  boxSize: [number, number, number];
+  showBox: boolean;
+  posePdb: string | null;
+  score: number | null;
+  isNewBest?: boolean;
+  running?: boolean;
+  hbonds: DockingHBond[];
+  clashes: DockingClash[];
+  label?: string;
 }

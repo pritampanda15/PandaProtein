@@ -18,7 +18,7 @@ from typing import Any, Dict, List
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, PlainTextResponse, Response
+from fastapi.responses import JSONResponse, PlainTextResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from .engines.analysis_engine import (
@@ -39,6 +39,13 @@ from .engines.coot_engine import (
     pepflip_residue,
     pick_altloc,
     regularize_zone,
+)
+from .engines.docking_engine import (
+    PRESET_LIGANDS,
+    export_docked_result,
+    find_vina_binary,
+    prepare_docking_ligand,
+    stream_live_docking,
 )
 from .engines.export_engine import (
     build_gromacs_zip_bundle,
@@ -850,6 +857,123 @@ def hole_export_endpoint(sid: str, req: HoleExportRequest) -> Response:
         content=json.dumps(data, indent=2),
         media_type="application/json",
         headers={"Content-Disposition": f'attachment; filename="{stem}_hole_pore.json"'},
+    )
+
+
+# ---------------------------------------------------------------------------
+# Live Real-Time 3D Molecular Docking Studio (SSE Streaming Vina Engine)
+# ---------------------------------------------------------------------------
+
+@app.get("/api/docking/presets")
+def docking_presets_endpoint() -> Dict[str, Any]:
+    return {
+        "presets": PRESET_LIGANDS,
+        "vina_available": find_vina_binary() is not None,
+    }
+
+
+@app.post("/api/sessions/{sid}/docking/prepare-ligand")
+async def docking_prepare_ligand_endpoint(
+    sid: str,
+    file: UploadFile = File(None),
+    smiles: str = Form(""),
+    session_ligand_id: str = Form(""),
+    name: str = Form(""),
+    ph: float = Form(7.4),
+    num_conformers: int = Form(8),
+) -> Dict[str, Any]:
+    sess = _get_session(sid)
+    try:
+        file_text = None
+        filename = name or None
+        if file is not None:
+            raw = await file.read()
+            file_text = raw.decode("utf-8", errors="replace")
+            filename = file.filename or "ligand.sdf"
+        return prepare_docking_ligand(
+            st=sess.structure,
+            smiles=smiles.strip() or None,
+            file_text=file_text,
+            filename=filename,
+            session_ligand_id=session_ligand_id.strip() or None,
+            ph=ph,
+            num_conformers=num_conformers,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Ligand preparation failed: {exc}")
+
+
+@app.post("/api/sessions/{sid}/docking/strip-ligands")
+def docking_strip_ligands_endpoint(sid: str) -> Dict[str, Any]:
+    """Strip co-crystallized organic ligands (while keeping protein + metals) to open the binding pocket for docking."""
+    sess = _get_session(sid)
+    sess.push_undo("Strip Co-Crystallized Ligands for Docking")
+    result = run_pdbfixer(
+        sess.structure,
+        {
+            "replace_nonstandard": False,
+            "resolve_altlocs": "keep_all",
+            "add_missing_atoms": False,
+            "add_missing_residues": False,
+            "cap_termini": "none",
+            "assign_disulfides": False,
+            "remove_waters": "all",
+            "remove_crystallization_artifacts": True,
+            "keep_ligands": False,
+            "keep_cofactors": True,
+            "keep_metals": True,
+        },
+    )
+    sess.invalidate_cache()
+    sess.record_history("Stripped co-crystallized ligands & bulk waters to open pocket for live docking")
+    return {"result": result, "state": sess.get_full_state()}
+
+
+@app.post("/api/sessions/{sid}/docking/run-stream")
+def docking_run_stream_endpoint(sid: str, payload: Dict[str, Any]) -> StreamingResponse:
+    sess = _get_session(sid)
+    ligand_key = str(payload.get("ligand_key", "")).strip()
+    box_center = payload.get("box_center")
+    box_size = payload.get("box_size") or [20.0, 20.0, 20.0]
+    exhaustiveness = int(payload.get("exhaustiveness", 8))
+    speed = str(payload.get("speed", "normal"))
+    use_vina_verify = bool(payload.get("use_vina_verify", False))
+    include_hetatms = bool(payload.get("include_hetatms", False))
+
+    if not ligand_key or not box_center or len(box_center) != 3:
+        raise HTTPException(status_code=400, detail="Missing ligand_key or 3D box_center [x, y, z].")
+
+    gen = stream_live_docking(
+        st=sess.structure,
+        ligand_key=ligand_key,
+        box_center=[float(x) for x in box_center],
+        box_size=[float(x) for x in box_size],
+        exhaustiveness=max(4, min(16, exhaustiveness)),
+        speed=speed,
+        use_vina_verify=use_vina_verify,
+        include_hetatms=include_hetatms,
+    )
+    return StreamingResponse(
+        gen,
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@app.get("/api/docking/{result_id}/download")
+def docking_download_endpoint(result_id: str, fmt: str = "complex_pdb", mode: int = 1) -> Response:
+    try:
+        content, filename, media_type = export_docked_result(result_id, fmt=fmt, mode=mode)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    return PlainTextResponse(
+        content,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 

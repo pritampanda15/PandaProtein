@@ -6,6 +6,7 @@ import { BatchPanel } from './components/BatchPanel';
 import { ClashesPanel } from './components/ClashesPanel';
 import { CommandPalette } from './components/CommandPalette';
 import { CootWorkbench } from './components/CootWorkbench';
+import { DockingPanel } from './components/DockingPanel';
 import { ExportPanel } from './components/ExportPanel';
 import { ImportModal } from './components/ImportModal';
 import { LigandPanel } from './components/LigandPanel';
@@ -20,6 +21,7 @@ import { TopBar } from './components/TopBar';
 import { ValidationPanel } from './components/ValidationPanel';
 import { Viewer3D, type ChainHighlight } from './components/Viewer3D';
 import type {
+  DockingLiveOverlay,
   HoleAnalysisData,
   MembraneInfo,
   MoleAnalysisData,
@@ -50,6 +52,8 @@ export function App() {
   const [moleColorBy, setMoleColorBy] = useState<MoleColorBy>('id');
   const [diffOverlayPdb, setDiffOverlayPdb] = useState<string | null>(null);
   const [membraneOverlay, setMembraneOverlay] = useState<MembraneInfo | null>(null);
+  const [dockingOverlay, setDockingOverlay] = useState<DockingLiveOverlay | null>(null);
+  const [dockingFocusTrigger, setDockingFocusTrigger] = useState(0);
   const [viewerExpanded, setViewerExpanded] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -144,6 +148,7 @@ export function App() {
     setVisibleMoleIds([]);
     setDiffOverlayPdb(null);
     setMembraneOverlay(null);
+    setDockingOverlay(null);
     setFocusTrigger(0);
   };
 
@@ -442,6 +447,19 @@ export function App() {
                     onError={(m) => pushToast(m, 'error')}
                   />
                 )}
+                {activeTab === 'docking' && (
+                  <DockingPanel
+                    session={session}
+                    busy={!!busy}
+                    onStateUpdate={handleStateUpdate}
+                    onUpdateDockingOverlay={setDockingOverlay}
+                    onFocusDockingBox={() => setDockingFocusTrigger((n) => n + 1)}
+                    onSelectResidue={handleSelectResidue}
+                    onSetBusy={setBusy}
+                    onError={(m) => pushToast(m, 'error')}
+                    onSuccess={(m) => pushToast(m, 'success')}
+                  />
+                )}
                 {activeTab === 'analysis' && (
                   <AnalysisPanel
                     session={session}
@@ -510,6 +528,8 @@ export function App() {
                   }
                   moleColorBy={moleColorBy}
                   holeData={showHole3D ? holeData : null}
+                  dockingOverlay={activeTab === 'docking' ? dockingOverlay : null}
+                  dockingFocusTrigger={dockingFocusTrigger}
                   diffOverlayPdb={diffOverlayPdb}
                   membraneOverlay={membraneOverlay}
                   expanded={viewerExpanded}
