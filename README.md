@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-007AFF.svg" alt="License: MIT" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-PolyForm%20Noncommercial%201.0.0-007AFF.svg" alt="License: PolyForm Noncommercial 1.0.0" /></a>
   <img src="https://img.shields.io/badge/Frontend-React%20%2B%20Tailwind%20CSS-38BDF8.svg" alt="Frontend" />
   <img src="https://img.shields.io/badge/Backend-FastAPI%20%2B%20Gemmi%20%2B%20PROPKA%203-34C759.svg" alt="Backend" />
   <img src="https://img.shields.io/badge/Ready%20for-GROMACS%20%C2%B7%20CHARMM36m%20%C2%B7%20Vina%20%C2%B7%20MOLE%20%C2%B7%20HOLE-AF52DE.svg" alt="MD &amp; Docking" />
@@ -198,7 +198,8 @@ PandaProtein/
 │           └── ImportModal.tsx      # Upload (.pdb/.cif/.gro), RCSB PDB & AlphaFold DB fetch
 ├── start.sh                         # One-command launcher (with backend auto-reload)
 ├── requirements.txt                 # Python backend dependencies
-└── LICENSE                          # MIT License
+├── LICENSE                          # PolyForm Noncommercial License 1.0.0
+└── NOTICE                           # Required attribution notice
 ```
 
 ---
@@ -222,4 +223,9 @@ PandaProtein/
 
 ## License
 
-This project is licensed under the MIT License — see [LICENSE](LICENSE) for details.
+This project is licensed under the **PolyForm Noncommercial License 1.0.0** (`SPDX: PolyForm-Noncommercial-1.0.0`) — see [LICENSE](LICENSE) and [NOTICE](NOTICE) for full terms.
+
+- **Permitted**: Academic, educational, public research, non-profit, government, and personal noncommercial use.
+- **Commercial Use**: Commercial use requires a separate commercial license. Please contact **Pritam Kumar Panda** (`pritam@stanford.edu`) for commercial licensing inquiries.
+
+> `Required Notice: Copyright (c) 2025-2026 Pritam Kumar Panda (https://github.com/pritampanda15/PandaProtein)`

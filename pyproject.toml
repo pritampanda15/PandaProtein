@@ -7,7 +7,7 @@ name = "pandaprotein"
 version = "2.0.0"
 description = "Deep Protein Preparation & Crystallographic Workbench (PDBFixer, PROPKA 3, COOT, MOLE 2.5, HOLE, CHARMM36m/GROMACS & Vina)"
 readme = "README.md"
-license = { text = "MIT" }
+license = { text = "PolyForm-Noncommercial-1.0.0" }
 requires-python = ">=3.10"
 authors = [
     { name = "Pritam Kumar Panda", email = "pritam@stanford.edu" }
@@ -29,7 +29,7 @@ keywords = [
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: MIT License",
+    "License :: Other/Proprietary License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
