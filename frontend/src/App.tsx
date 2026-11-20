@@ -6,7 +6,7 @@ import { BatchPanel } from './components/BatchPanel';
 import { ClashesPanel } from './components/ClashesPanel';
 import { CommandPalette } from './components/CommandPalette';
 import { CootWorkbench } from './components/CootWorkbench';
-import { DockingPanel } from './components/DockingPanel';
+import { DockingPanel, type PendingRedockTarget } from './components/DockingPanel';
 import { ExportPanel } from './components/ExportPanel';
 import { ImportModal } from './components/ImportModal';
 import { LigandPanel } from './components/LigandPanel';
@@ -54,6 +54,7 @@ export function App() {
   const [membraneOverlay, setMembraneOverlay] = useState<MembraneInfo | null>(null);
   const [dockingOverlay, setDockingOverlay] = useState<DockingLiveOverlay | null>(null);
   const [dockingFocusTrigger, setDockingFocusTrigger] = useState(0);
+  const [pendingRedock, setPendingRedock] = useState<PendingRedockTarget | null>(null);
   const [viewerExpanded, setViewerExpanded] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -387,6 +388,10 @@ export function App() {
                     session={session}
                     busy={!!busy}
                     onSelectResidue={handleSelectResidue}
+                    onRedockLigand={(target) => {
+                      setPendingRedock(target);
+                      setActiveTab('docking');
+                    }}
                     onSetBusy={setBusy}
                     onError={(m) => pushToast(m, 'error')}
                   />
@@ -451,6 +456,8 @@ export function App() {
                   <DockingPanel
                     session={session}
                     busy={!!busy}
+                    pendingRedock={pendingRedock}
+                    onClearPendingRedock={() => setPendingRedock(null)}
                     onStateUpdate={handleStateUpdate}
                     onUpdateDockingOverlay={setDockingOverlay}
                     onFocusDockingBox={() => setDockingFocusTrigger((n) => n + 1)}

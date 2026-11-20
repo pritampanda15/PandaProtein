@@ -26,9 +26,18 @@ import type {
   StructureSessionState,
 } from '../types/pdbprep';
 
+export interface PendingRedockTarget {
+  id: string;
+  center: [number, number, number];
+  size: [number, number, number];
+  label: string;
+}
+
 interface DockingPanelProps {
   session: StructureSessionState;
   busy: boolean;
+  pendingRedock?: PendingRedockTarget | null;
+  onClearPendingRedock?: () => void;
   onStateUpdate: (state: StructureSessionState, toast: string) => void;
   onUpdateDockingOverlay: (overlay: DockingLiveOverlay | null) => void;
   onFocusDockingBox: () => void;
@@ -41,6 +50,8 @@ interface DockingPanelProps {
 export const DockingPanel: React.FC<DockingPanelProps> = ({
   session,
   busy,
+  pendingRedock,
+  onClearPendingRedock,
   onStateUpdate,
   onUpdateDockingOverlay,
   onFocusDockingBox,
@@ -49,8 +60,15 @@ export const DockingPanel: React.FC<DockingPanelProps> = ({
   onError,
   onSuccess,
 }) => {
-  // Step 2: Ligand State
-  const [ligSourceTab, setLigSourceTab] = useState<'smiles' | 'upload' | 'receptor'>('smiles');
+  // Step 2: Ligand State — default to 'receptor' tab when X-ray structure has bound ligands!
+  const [ligSourceTab, setLigSourceTab] = useState<'smiles' | 'upload' | 'receptor'>(
+    session.ligands_info.ligands.length > 0 ? 'receptor' : 'smiles'
+  );
+  const [savedNativeBox, setSavedNativeBox] = useState<{
+    label: string;
+    center: [number, number, number];
+    size: [number, number, number];
+  } | null>(null);
   const [presets, setPresets] = useState<DockingPresetLigand[]>([]);
   const [vinaAvailable, setVinaAvailable] = useState(false);
   const [smilesInput, setSmilesInput] = useState(
@@ -110,6 +128,8 @@ export const DockingPanel: React.FC<DockingPanelProps> = ({
   useEffect(() => {
     setBoxCenter(defaultBox.center);
     setBoxSize(defaultBox.size);
+    setSavedNativeBox(null);
+    setLigSourceTab(session.ligands_info.ligands.length > 0 ? 'receptor' : 'smiles');
     setFrames([]);
     setModes([]);
     setSelectedMode(null);
@@ -271,8 +291,18 @@ export const DockingPanel: React.FC<DockingPanelProps> = ({
     }
   };
 
-  const handleExtractSessionLigand = async (ligId: string, box?: [number, number, number]) => {
-    onSetBusy(`Extracting & preparing ${ligId} for redocking…`);
+  const handleExtractSessionLigand = async (
+    ligId: string,
+    boxCenterIn?: [number, number, number],
+    boxSizeIn?: [number, number, number],
+    stripAfterExtract = false,
+    label?: string
+  ) => {
+    onSetBusy(
+      stripAfterExtract
+        ? `Extracting ${label || ligId}, locking native grid box & opening binding pocket…`
+        : `Extracting & preparing ${label || ligId} for redocking…`
+    );
     try {
       const res = await api.prepareDockingLigand(session.session_id, {
         session_ligand_id: ligId,
@@ -280,20 +310,58 @@ export const DockingPanel: React.FC<DockingPanelProps> = ({
         num_conformers: 8,
       });
       setPreparedLigand(res);
-      if (box) {
-        setBoxCenter(box);
+
+      // Lock 3D Grid Box directly onto the native bound ligand's exact crystal coordinates & size
+      const targetCenter: [number, number, number] =
+        (res.native_center as [number, number, number] | null) || boxCenterIn || boxCenter;
+      const rawSize: [number, number, number] =
+        (res.native_box_size as [number, number, number] | null) || boxSizeIn || [20, 20, 20];
+      const clampedSize: [number, number, number] = [
+        Math.max(14, Math.min(34, rawSize[0])),
+        Math.max(14, Math.min(34, rawSize[1])),
+        Math.max(14, Math.min(34, rawSize[2])),
+      ];
+      setBoxCenter(targetCenter);
+      setBoxSize(clampedSize);
+      setShowBox3D(true);
+      setSavedNativeBox({
+        label: label || res.name,
+        center: targetCenter,
+        size: clampedSize,
+      });
+
+      if (stripAfterExtract) {
+        const stripped = await api.stripDockingLigands(session.session_id);
+        onStateUpdate(
+          stripped.state,
+          `Redock ready for ${res.name}! Grid box locked at (${targetCenter.map((v) => v.toFixed(1)).join(', ')}) Å & pocket opened.`
+        );
+      } else {
+        onSuccess(
+          `Extracted ${res.name} & locked Grid Box to (${targetCenter.map((v) => v.toFixed(1)).join(', ')}) Å!`
+        );
       }
+
       setModes([]);
       setFrames([]);
       setSelectedMode(null);
       setActiveFrameIdx(-1);
-      onSuccess(`Prepared ${res.name} for redocking — tip: click "Open Pocket" above to remove the original copy before docking!`);
+      setTimeout(() => onFocusDockingBox(), 80);
     } catch (e: any) {
       onError(e?.message || 'Extraction failed');
     } finally {
       onSetBusy(null);
     }
   };
+
+  // Handle cross-tab "Redock in Live 3D" trigger from Ligands & Metals panel
+  useEffect(() => {
+    if (pendingRedock && !busy && !isDocking) {
+      const target = pendingRedock;
+      onClearPendingRedock?.();
+      void handleExtractSessionLigand(target.id, target.center, target.size, true, target.label);
+    }
+  }, [pendingRedock?.id]);
 
   const handleStartLiveDocking = async () => {
     if (!preparedLigand) {
@@ -668,29 +736,99 @@ export const DockingPanel: React.FC<DockingPanelProps> = ({
         )}
 
         {ligSourceTab === 'receptor' && (
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             {session.ligands_info.ligands.length === 0 ? (
               <div className="text-[12px] text-[#86868B] py-2">
-                No co-crystallized ligands in the current receptor. Use SMILES or Upload File above!
+                {savedNativeBox ? (
+                  <span className="text-[#1B8A38] dark:text-[#30D158] font-medium">
+                    Pocket cleared for redocking <strong>{savedNativeBox.label}</strong> — Grid Box remains locked at (
+                    {savedNativeBox.center.map((v) => v.toFixed(1)).join(', ')}) Å. Press <strong>Start Live Docking</strong>!
+                  </span>
+                ) : (
+                  'No co-crystallized ligands in the current receptor. Use SMILES or Upload File above!'
+                )}
               </div>
             ) : (
-              session.ligands_info.ligands.map((l) => (
-                <div
-                  key={l.id}
-                  className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-black/[0.025] dark:bg-white/[0.04]"
-                >
-                  <div className="text-[12px]">
-                    <span className="font-mono font-bold">{l.resname}</span> ({l.chain}:{l.resseq}) · {l.heavy_atoms} heavy atoms
-                  </div>
-                  <button
-                    disabled={busy || isDocking}
-                    onClick={() => handleExtractSessionLigand(l.id, l.center as [number, number, number])}
-                    className="apple-btn-primary !py-1 !px-2.5 text-[11.5px]"
+              session.ligands_info.ligands.map((l) => {
+                const lCenter = l.docking_box.center as [number, number, number];
+                const lSize: [number, number, number] = [
+                  Math.max(14, Math.min(34, l.docking_box.size[0])),
+                  Math.max(14, Math.min(34, l.docking_box.size[1])),
+                  Math.max(14, Math.min(34, l.docking_box.size[2])),
+                ];
+                return (
+                  <div
+                    key={l.id}
+                    className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-black/[0.025] dark:bg-white/[0.04] border border-black/[0.05] dark:border-white/[0.06]"
                   >
-                    Extract &amp; Prepare
-                  </button>
-                </div>
-              ))
+                    <div className="min-w-0 space-y-0.5">
+                      <div className="text-[12.5px] font-semibold flex items-center gap-1.5">
+                        <span className="font-mono font-bold text-[#AF52DE] dark:text-[#BF5AF2]">{l.resname}</span>
+                        <span>({l.chain}:{l.resseq})</span>
+                        <span className="text-[11px] font-normal text-[#86868B]">· {l.heavy_atoms} heavy atoms</span>
+                      </div>
+                      <div className="text-[10.5px] font-mono text-[#6E6E73] dark:text-[#A1A1A6]">
+                        Grid Center: ({lCenter.map((v) => v.toFixed(2)).join(', ')}) Å · Box:{' '}
+                        {lSize.map((v) => v.toFixed(0)).join('×')} Å
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                      <button
+                        disabled={busy || isDocking}
+                        onClick={() => {
+                          setBoxCenter(lCenter);
+                          setBoxSize(lSize);
+                          setShowBox3D(true);
+                          setSavedNativeBox({
+                            label: `${l.resname} (${l.chain}:${l.resseq})`,
+                            center: lCenter,
+                            size: lSize,
+                          });
+                          onFocusDockingBox();
+                        }}
+                        className="apple-btn-secondary !py-1 !px-2 text-[11px]"
+                        title="Snap & zoom the 3D Grid Box directly onto this bound ligand's crystal coordinates"
+                      >
+                        <Crosshair className="w-3 h-3 text-[#007AFF]" />
+                        Set Grid Here
+                      </button>
+                      <button
+                        disabled={busy || isDocking}
+                        onClick={() =>
+                          handleExtractSessionLigand(
+                            l.id,
+                            lCenter,
+                            lSize,
+                            true,
+                            `${l.resname} (${l.chain}:${l.resseq})`
+                          )
+                        }
+                        className="apple-btn-primary !py-1 !px-2.5 !bg-[#34C759] hover:!bg-[#248A3D] text-[11px]"
+                        title="Extract this ligand, lock Grid Box to its exact site, and strip the crystal copy so you can immediately redock it"
+                      >
+                        <Zap className="w-3 h-3" />
+                        1-Click Redock Setup
+                      </button>
+                      <button
+                        disabled={busy || isDocking}
+                        onClick={() =>
+                          handleExtractSessionLigand(
+                            l.id,
+                            lCenter,
+                            lSize,
+                            false,
+                            `${l.resname} (${l.chain}:${l.resseq})`
+                          )
+                        }
+                        className="apple-btn-secondary !py-1 !px-2 text-[11px]"
+                        title="Extract ligand & lock Grid Box without stripping the crystal copy"
+                      >
+                        Extract Only
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
             )}
           </div>
         )}
@@ -761,6 +899,19 @@ export const DockingPanel: React.FC<DockingPanelProps> = ({
         {/* Auto-Center Quick Presets */}
         <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
           <span className="text-[#86868B]">Auto-Center:</span>
+          {savedNativeBox && (
+            <button
+              onClick={() => {
+                setBoxCenter(savedNativeBox.center);
+                setBoxSize(savedNativeBox.size);
+                setShowBox3D(true);
+                onFocusDockingBox();
+              }}
+              className="px-2.5 py-1 rounded-full bg-[#34C759]/15 text-[#1B8A38] dark:text-[#30D158] font-semibold hover:bg-[#34C759]/25 transition"
+            >
+              Native Site: {savedNativeBox.label}
+            </button>
+          )}
           {session.ligands_info.docking_boxes.map((b, idx) => (
             <button
               key={`lb-${idx}`}
@@ -1187,6 +1338,15 @@ export const DockingPanel: React.FC<DockingPanelProps> = ({
                     </div>
                     <div className="text-[10.5px] font-mono text-[#86868B] mt-1">
                       Ki {m.ki} · {m.hbonds.length} H-B · RMSD {m.rmsd_from_best_A} Å
+                      {m.redock_rmsd_A !== null && m.redock_rmsd_A !== undefined && (
+                        <span
+                          className={`ml-1.5 font-semibold ${
+                            m.redock_rmsd_A <= 2.0 ? 'text-[#34C759]' : 'text-[#FF9500]'
+                          }`}
+                        >
+                          · X-Ray RMSD {m.redock_rmsd_A} Å
+                        </span>
+                      )}
                     </div>
                   </button>
                 );

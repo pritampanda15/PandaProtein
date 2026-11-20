@@ -321,7 +321,21 @@ def prepare_docking_ligand(
 
     # Build a diverse ensemble of low-energy 3D conformers for flexible live docking
     conformer_coords: List[np.ndarray] = []
+    native_heavy_coords: Optional[np.ndarray] = None
+    native_center: Optional[List[float]] = None
+    native_box_size: Optional[List[float]] = None
+
     if has_native_3d and mol_h.GetNumConformers() > 0:
+        # Capture exact X-ray crystal heavy-atom coordinates BEFORE centering/minimizing (for Redock RMSD!)
+        raw_pos = np.array(mol_h.GetConformer(0).GetPositions(), dtype=np.float64)
+        heavy_mask_tmp = [a.GetIdx() for a in mol_h.GetAtoms() if a.GetAtomicNum() > 1]
+        if heavy_mask_tmp:
+            nat_h = raw_pos[heavy_mask_tmp]
+            native_heavy_coords = nat_h.copy()
+            c_min = np.min(nat_h, axis=0)
+            c_max = np.max(nat_h, axis=0)
+            native_center = [round(float(x), 2) for x in ((c_min + c_max) / 2.0)]
+            native_box_size = [round(float(max(16.0, min(32.0, (c_max[k] - c_min[k]) + 10.0))), 1) for k in range(3)]
         try:
             AllChem.MMFFOptimizeMolecule(mol_h, maxIters=120)
         except Exception:
@@ -385,6 +399,9 @@ def prepare_docking_ligand(
         "heavy_info": heavy_info,
         "n_rot": n_rot,
         "smiles": smi_out,
+        "native_heavy_coords": native_heavy_coords,
+        "native_center": native_center,
+        "native_box_size": native_box_size,
     }
     if len(_LIGAND_CACHE) > 25:
         del _LIGAND_CACHE[next(iter(_LIGAND_CACHE))]
@@ -407,6 +424,9 @@ def prepare_docking_ligand(
         "svg": svg,
         "ph": ph,
         "vina_available": find_vina_binary() is not None,
+        "is_redock": native_heavy_coords is not None,
+        "native_center": native_center,
+        "native_box_size": native_box_size,
     }
 
 
@@ -1033,18 +1053,24 @@ def stream_live_docking(
             clustered.append(item)
 
     best_heavy = clustered[0][3][heavy_idx]
+    native_heavy: Optional[np.ndarray] = lig.get("native_heavy_coords")
     modes_payload: List[Dict[str, Any]] = []
     sdf_buf = io.StringIO()
     sdf_writer = Chem.SDWriter(sdf_buf)
 
     for rank, (c_i, x_v, sc_d, c_arr) in enumerate(clustered, start=1):
-        rmsd_best = round(float(np.sqrt(np.mean(np.sum((c_arr[heavy_idx] - best_heavy) ** 2, axis=1)))), 2)
+        pose_heavy = c_arr[heavy_idx]
+        rmsd_best = round(float(np.sqrt(np.mean(np.sum((pose_heavy - best_heavy) ** 2, axis=1)))), 2)
+        redock_rmsd = None
+        if native_heavy is not None and native_heavy.shape == pose_heavy.shape:
+            redock_rmsd = round(float(np.sqrt(np.mean(np.sum((pose_heavy - native_heavy) ** 2, axis=1)))), 2)
         pose_pdb = _coords_to_pdb_block(mol_h, c_arr)
         modes_payload.append({
             "mode": rank,
             "affinity_kcal_mol": sc_d["total"],
             "ki": _affinity_to_ki_str(sc_d["total"]),
             "rmsd_from_best_A": rmsd_best,
+            "redock_rmsd_A": redock_rmsd,
             "terms": {
                 "gauss1": sc_d["gauss1"],
                 "gauss2": sc_d["gauss2"],

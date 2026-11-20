@@ -819,6 +819,9 @@ export interface PreparedDockingLigand {
   svg: string;
   ph: number;
   vina_available: boolean;
+  is_redock?: boolean;
+  native_center?: [number, number, number] | null;
+  native_box_size?: [number, number, number] | null;
 }
 
 export interface DockingScoreTerms {
@@ -880,6 +883,7 @@ export interface DockingMode {
   affinity_kcal_mol: number;
   ki: string;
   rmsd_from_best_A: number;
+  redock_rmsd_A?: number | null;
   terms: DockingScoreTerms;
   hbonds: DockingHBond[];
   clashes: DockingClash[];

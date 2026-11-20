@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Atom, Beaker, Download, Sparkles } from 'lucide-react';
+import { Atom, Beaker, Download, Sparkles, Zap } from 'lucide-react';
 import { api } from '../api/client';
 import type { SelectedResidue, StructureSessionState } from '../types/pdbprep';
 
@@ -7,6 +7,12 @@ interface LigandPanelProps {
   session: StructureSessionState;
   busy: boolean;
   onSelectResidue: (res: SelectedResidue, focus3D?: boolean) => void;
+  onRedockLigand: (lig: {
+    id: string;
+    center: [number, number, number];
+    size: [number, number, number];
+    label: string;
+  }) => void;
   onSetBusy: (msg: string | null) => void;
   onError: (msg: string) => void;
 }
@@ -15,6 +21,7 @@ export const LigandPanel: React.FC<LigandPanelProps> = ({
   session,
   busy,
   onSelectResidue,
+  onRedockLigand,
   onSetBusy,
   onError,
 }) => {
@@ -104,7 +111,7 @@ export const LigandPanel: React.FC<LigandPanelProps> = ({
                 )}
               </div>
 
-              <div className="flex items-center gap-1.5">
+              <div className="flex flex-wrap items-center gap-1.5">
                 <button
                   onClick={() =>
                     onSelectResidue({ chain: lig.chain, resseq: lig.resseq, icode: lig.icode, resname: lig.resname }, true)
@@ -115,6 +122,22 @@ export const LigandPanel: React.FC<LigandPanelProps> = ({
                 </button>
                 <button
                   disabled={busy}
+                  onClick={() =>
+                    onRedockLigand({
+                      id: lig.id,
+                      center: lig.docking_box.center as [number, number, number],
+                      size: lig.docking_box.size as [number, number, number],
+                      label: `${lig.resname} (${lig.chain}:${lig.resseq})`,
+                    })
+                  }
+                  className="apple-btn-primary !bg-[#34C759] hover:!bg-[#248A3D] text-[12px]"
+                  title="Extract this bound ligand, lock the 3D grid box to its native crystal coordinates, open the pocket & redock live"
+                >
+                  <Zap className="w-3.5 h-3.5" />
+                  Redock in Live 3D
+                </button>
+                <button
+                  disabled={busy}
                   onClick={() => handleGenConformers(lig.id)}
                   className="apple-btn-primary text-[12px]"
                 >
@@ -122,6 +145,17 @@ export const LigandPanel: React.FC<LigandPanelProps> = ({
                   ETKDGv3 Conformers
                 </button>
               </div>
+            </div>
+
+            {/* Native Crystal Coordinates & AutoDock Grid Box Readout */}
+            <div className="px-3 py-2 rounded-xl bg-[#007AFF]/[0.06] border border-[#007AFF]/15 flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono">
+              <span className="text-[#007AFF] dark:text-[#0A84FF] font-semibold">
+                Native Binding Site Grid Box
+              </span>
+              <span className="text-[#1D1D1F] dark:text-[#E5E5EA]">
+                Center ({lig.docking_box.center.map((v) => v.toFixed(2)).join(', ')}) Å · Size{' '}
+                {lig.docking_box.size.map((v) => v.toFixed(1)).join(' × ')} Å
+              </span>
             </div>
 
             {/* 2D Depiction + RDKit Physicochemical Properties */}
