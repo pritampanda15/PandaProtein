@@ -13,7 +13,6 @@ import {
   Microscope,
   Waypoints,
   Wrench,
-  Zap,
 } from 'lucide-react';
 import type { NavTab, StructureSessionState } from '../types/pdbprep';
 
@@ -122,13 +121,6 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({ activeTab, onSelect, ses
     {
       title: 'Simulation & Docking',
       items: [
-        {
-          id: 'docking',
-          label: 'Live 3D Docking',
-          icon: <Zap className="w-4 h-4" />,
-          badge: 'LIVE',
-          badgeTone: 'bg-[#34C759]/15 text-[#1B8A38] dark:text-[#30D158]',
-        },
         { id: 'export', label: 'MD & Docking Export', icon: <Download className="w-4 h-4" /> },
         {
           id: 'batch',

@@ -1,12 +1,10 @@
 import type {
   BatchPrepResult,
-  DockingPresetLigand,
   GromacsTestResult,
   HoleAnalysisData,
   InteractionsMembraneData,
   MoleAnalysisData,
   MoleMutationScanResult,
-  PreparedDockingLigand,
   PropkaData,
   RotamerExplorerData,
   SolvationEstimate,
@@ -471,60 +469,6 @@ export const api = {
     const cd = res.headers.get('Content-Disposition') || '';
     const match = cd.match(/filename="([^"]+)"/);
     const filename = match ? match[1] : fallbackFilename;
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  },
-
-  getDockingPresets: () =>
-    request<{ presets: DockingPresetLigand[]; vina_available: boolean }>('/api/docking/presets'),
-
-  prepareDockingLigand: (
-    sid: string,
-    opts: {
-      file?: File | null;
-      smiles?: string;
-      session_ligand_id?: string;
-      name?: string;
-      ph?: number;
-      num_conformers?: number;
-    }
-  ) => {
-    const fd = new FormData();
-    if (opts.file) fd.append('file', opts.file);
-    if (opts.smiles) fd.append('smiles', opts.smiles);
-    if (opts.session_ligand_id) fd.append('session_ligand_id', opts.session_ligand_id);
-    if (opts.name) fd.append('name', opts.name);
-    fd.append('ph', String(opts.ph ?? 7.4));
-    fd.append('num_conformers', String(opts.num_conformers ?? 8));
-    return request<PreparedDockingLigand>(`/api/sessions/${sid}/docking/prepare-ligand`, {
-      method: 'POST',
-      body: fd,
-    });
-  },
-
-  stripDockingLigands: (sid: string) =>
-    request<{ result: { actions: string[] }; state: StructureSessionState }>(
-      `/api/sessions/${sid}/docking/strip-ligands`,
-      { method: 'POST' }
-    ),
-
-  downloadDockedResult: async (
-    resultId: string,
-    fmt: 'complex_pdb' | 'poses_sdf' | 'mode_pdb',
-    mode = 1
-  ) => {
-    const res = await fetch(`/api/docking/${resultId}/download?fmt=${fmt}&mode=${mode}`);
-    if (!res.ok) throw new Error(`Docking export failed (${res.status})`);
-    const blob = await res.blob();
-    const cd = res.headers.get('Content-Disposition') || '';
-    const match = cd.match(/filename="([^"]+)"/);
-    const filename = match ? match[1] : `docked_${fmt}`;
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Atom, Beaker, Download, Sparkles, Zap } from 'lucide-react';
+import { Atom, Beaker, Download, Sparkles } from 'lucide-react';
 import { api } from '../api/client';
 import type { SelectedResidue, StructureSessionState } from '../types/pdbprep';
 
@@ -7,12 +7,6 @@ interface LigandPanelProps {
   session: StructureSessionState;
   busy: boolean;
   onSelectResidue: (res: SelectedResidue, focus3D?: boolean) => void;
-  onRedockLigand: (lig: {
-    id: string;
-    center: [number, number, number];
-    size: [number, number, number];
-    label: string;
-  }) => void;
   onSetBusy: (msg: string | null) => void;
   onError: (msg: string) => void;
 }
@@ -21,7 +15,6 @@ export const LigandPanel: React.FC<LigandPanelProps> = ({
   session,
   busy,
   onSelectResidue,
-  onRedockLigand,
   onSetBusy,
   onError,
 }) => {
@@ -119,22 +112,6 @@ export const LigandPanel: React.FC<LigandPanelProps> = ({
                   className="apple-btn-secondary text-[12px]"
                 >
                   Focus Pocket
-                </button>
-                <button
-                  disabled={busy}
-                  onClick={() =>
-                    onRedockLigand({
-                      id: lig.id,
-                      center: lig.docking_box.center as [number, number, number],
-                      size: lig.docking_box.size as [number, number, number],
-                      label: `${lig.resname} (${lig.chain}:${lig.resseq})`,
-                    })
-                  }
-                  className="apple-btn-primary !bg-[#34C759] hover:!bg-[#248A3D] text-[12px]"
-                  title="Extract this bound ligand, lock the 3D grid box to its native crystal coordinates, open the pocket & redock live"
-                >
-                  <Zap className="w-3.5 h-3.5" />
-                  Redock in Live 3D
                 </button>
                 <button
                   disabled={busy}

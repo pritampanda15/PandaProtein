@@ -15,7 +15,7 @@
   <img src="https://img.shields.io/badge/Ready%20for-GROMACS%20%C2%B7%20CHARMM36m%20%C2%B7%20Vina%20%C2%B7%20MOLE%20%C2%B7%20HOLE-AF52DE.svg" alt="MD &amp; Docking" />
 </p>
 
-**PandaProtein** is a modern full-stack protein preparation studio built with **React, TypeScript, and Tailwind CSS** (styled with Apple Human Interface Guidelines) and a high-performance **FastAPI** structural biology backend. It unifies **COOT crystallographic validation & interactive model building**, **PDBFixer structural repair**, **PROPKA 3.5.1 protonation**, **RDKit ligand/pocket preparation**, **MOLE 2.5 tunnels & HOLE ion-channel pore profiling**, **3D phospholipid bilayer orientation**, and **GROMACS (CHARMM36m / AMBER) + AutoDock Vina / GNINA** export pipelines inside a single live 3D web workbench.
+**PandaProtein** is a modern full-stack protein preparation studio built with **React, TypeScript, and Tailwind CSS** (styled with Apple Human Interface Guidelines) and a high-performance **FastAPI** structural biology backend. It unifies **COOT crystallographic validation & interactive model building**, **PDBFixer structural repair**, **PROPKA 3.5.1 protonation**, **RDKit ligand/pocket preparation**, **MOLE 2.5 tunnels & HOLE ion-channel pore profiling**, **3D phospholipid bilayer orientation**, and **GROMACS (CHARMM36m / AMBER) + PandaX / AutoDock Vina / GNINA** export pipelines inside a single live 3D web workbench.
 
 > **Repository:** [https://github.com/pritampanda15/PandaProtein](https://github.com/pritampanda15/PandaProtein)
 
@@ -58,10 +58,10 @@
 
 ### 5. RDKit Ligands, Metals & 3D Druggable Binding Pocket Finder
 - RDKit 2D vector SVG depictions, SMILES, Lipinski Rule-of-5 properties (MW, cLogP, TPSA, HBD/HBA, rotatable bonds), and **ETKDGv3 + MMFF94** 3D conformer generation (`.sdf`).
-- **Native Binding Site Grid Coordinates & 1-Click Redock**: Every bound X-ray ligand displays its exact native `Center (X, Y, Z) Å` and `Box (W×H×D Å)` with a **Redock in Live 3D** button that extracts the ligand, locks the grid box, opens the pocket, and reports **X-Ray Crystal RMSD (Å)** on every docked mode.
-- **Complete Docking & MD Ligand Preparation**: 1-click export of every co-crystallized ligand as **AutoDock Vina/GNINA `.pdbqt`** (with `ROOT`/`BRANCH`/`TORSDOF` rotatable torsion tree & Gasteiger charges), **Tripos `.mol2`** (Sybyl atom types + Gasteiger charges for CGenFF/ACPYPE/AnteChamber), `.sdf`, or `.pdb` protonated at the active PROPKA pH.
+- **Native Binding Site Grid Box Coordinates**: Every bound X-ray ligand displays its exact native `Center (X, Y, Z) Å` and `Box (W×H×D Å)` coordinates, ready to hand off directly into **PandaX**, AutoDock Vina, or GNINA for redocking and virtual screening.
+- **Complete Docking & MD Ligand Preparation**: 1-click export of every co-crystallized ligand as **AutoDock Vina/GNINA/PandaX `.pdbqt`** (with `ROOT`/`BRANCH`/`TORSDOF` rotatable torsion tree & Gasteiger charges), **Tripos `.mol2`** (Sybyl atom types + Gasteiger charges for CGenFF/ACPYPE/AnteChamber), `.sdf`, or `.pdb` protonated at the active PROPKA pH.
 - 3D binding pocket contact mapping (H-bonds, hydrophobic contacts, metal coordination spheres).
-- Built-in **3D Druggable Cavity Detector** (volume in $\text{Å}^3$, druggability score, hydrophobic %, lining residues, translucent 3D pocket cloud overlay, and automatic AutoDock Vina grid boxes for apo proteins).
+- Built-in **3D Druggable Cavity Detector** (volume in $\text{Å}^3$, druggability score, hydrophobic %, lining residues, translucent 3D pocket cloud overlay, and automatic docking grid boxes for apo proteins).
 
 ### 6. MOLE 2.5 Tunnels & HOLE Ion-Channel Pore Radius (Smart et al. 1996)
 - **MOLE 2.5 3D Voronoi Engine**: Automatically discovers substrate access **Tunnels** (from active-site ligands, cavities, custom catalytic residues, or 3D coordinates to the molecular surface) and **Trans-Protein Pores** spanning opposite faces, with interactive radius/hydropathy SVG charts and an **In-Silico Bottleneck Mutation Scanner** (`→ ALA/GLY/VAL` with 1-click Apply Mutation).
@@ -73,22 +73,17 @@
 - **OPM-Style Transmembrane Bilayer (+Z Aligner & 3D Lipid Bilayer)**: Slides a 30 Å surface-weighted hydrophobic slab to locate the true transmembrane belt even in multi-domain receptors, renders a **realistic 3D phospholipid bilayer** (outer amber & inner cyan phosphate headgroups with inward-facing dual hydrophobic acyl tails that wrap cleanly around the protein), and aligns the channel/membrane axis onto **+Z** centered at `(0, 0, 0)` in one click.
 - **Non-Covalent Interaction Networks**: Automated detection of **Salt Bridges** (intra- & inter-chain), **Aromatic $\pi\text{–}\pi$ Stacking** (parallel-displaced & T-shaped), and **Inter-Chain Interface Contacts**.
 
-### 8. Live Real-Time 3D Molecular Docking Studio (`Live 3D Docking`)
-- **4-Step Apple Guided Workflow**: **1. Prepare Receptor** (PDBFixer + COOT + PROPKA Polar H + 1-click Open Pocket) → **2. Upload or Enter Ligand** (`.sdf`, `.mol2`, `.pdb`, `.pdbqt`, SMILES, 1-click benchmark drugs like *Nirmatrelvir/Paxlovid*, or **1-Click Redock Setup** directly from any bound X-ray ligand with automatic crystal coordinates & **X-Ray Redock RMSD** validation; auto-protonated with RDKit **ETKDGv3 + MMFF94** multi-conformer generation & 2D SVG preview) → **3. Interactive 3D Grid Box** (auto-center on bound ligands/pockets + live X/Y/Z sliders + Focus Grid in 3D) → **4. Watch Docking Live in 3D**.
-- **Real-Time SSE Streaming Physics**: Implements AutoDock Vina's exact 6-term scoring function (*Trott & Olson 2010*: `Gauss1`, `Gauss2`, `Repulsion`, `Hydrophobic`, `H-Bond`, `N_rot` torsional entropy) across Global Grid Exploration, Metropolis Simulated Annealing, and Local 6-DOF Minimization, streaming live 3D poses at 60 FPS with zero protein flicker!
-- **Live Visual Action & Energy Telemetry**: Watch the ligand explore the glowing 3D grid box, flash cyan **Hydrogen Bonds** and red **Steric Clashes** in real time, track the live SVG **$\Delta G$ (kcal/mol) descent curve** and **6-term energy decomposition bars**, scrub/replay the recorded docking movie, inspect the **Top 9 Ranked Binding Modes** (with estimated $K_i$ & Crystal RMSD), optionally cross-verify with local `vina` CLI, and export the **Docked Complex `.pdb`** or **Multi-Pose `.sdf`**.
-
-### 9. Multi-Target Export Studio, Live GROMACS Verification & Batch Prep Queue
+### 8. Multi-Target Export Studio, Live GROMACS Verification & Batch Prep Queue
 - Supports **PDB** (`.pdb`), **mmCIF** (`.cif`), **GROMACS `.gro`** (both **import & export** with nm conversion and box vectors), **RCSB PDB ID fetch**, and **AlphaFold DB UniProt fetch** — ships with **SARS-CoV-2 $\text{M}^\text{pro}$ (`6LU7`)** bundled locally as the instant default structure.
 - **Force-Field-Aware GROMACS Pipeline**:
   - **CHARMM36m (`charmm36-jul2022` · Recommended)** with automatic `HID/HIE/HIP → HSD/HSE/HSP` nomenclature mapping and official CHARMM MDP nonbonded physics (`vdw-modifier = force-switch`, `rvdw-switch = 1.0`, `rvdw = 1.2`, `rcoulomb = 1.2`, `DispCorr = no`).
   - Also supports **AMBER99SB-ILDN**, **CHARMM27**, **OPLS-AA/L**, **GROMOS96 54a7**, and **AMBER03**.
   - **Live `gmx pdb2gmx` Pre-Flight Test** right from the browser + **Periodic Box, Solvation & Ion Calculator** (box volume, TIP3P waters, $\text{Na}^+/\text{Cl}^-$ counter-ions, total MD atom count).
-- **Molecular Docking Export**: AutoDock Vina / GNINA receptor **`.pdbqt`** (polar H, partial charges, AD4 atom types) + auto-computed **`vina_config.txt`** with 3D wireframe Grid Box overlay, APBS **`.pqr`**, complete **GROMACS Production `.zip` Bundle**, and publication-grade Markdown/JSON reports.
+- **Docking-Ready Exports (PandaX · AutoDock Vina · GNINA)**: Receptor **`.pdbqt`** (polar H, partial charges, AD4 atom types) + auto-computed **`vina_config.txt`** with 3D wireframe Grid Box overlay, APBS **`.pqr`**, complete **GROMACS Production `.zip` Bundle**, and publication-grade Markdown/JSON reports. *(Live 3D molecular docking lives in our companion **PandaX** suite.)*
 - **Batch Multi-Structure Preparation Queue**: Drag-and-drop multiple `.pdb`/`.cif`/`.gro` files to run automated PDBFixer + COOT + PROPKA (+ optional MOLE) across an entire library, view Before → After readiness & clash audits, and download a unified **Batch ZIP** containing every prepared `.pdb`, `.gro`, `.pdbqt`, `vina_config.txt`, and `batch_summary.csv`.
 
-### 10. Apple-Crafted 3D Workbench UX
-- Persistent **3Dmol.js** WebGL viewport (`keepH: true`) with Cartoon, Sticks, Ball & Stick, and Surface modes, QA Issues Heatmap, B-factor/pLDDT coloring, 3D Disulfide/Metal/H-Bond cylinders (`S–S/HB`), 3D Clash spheres, Pocket clouds, MOLE Tunnel tubes, HOLE R/G/B Pore surface, Ghost Superposition, **3D Phospholipid Bilayer**, **2-Click 3D Distance Ruler (Å)** (works across both receptor & live docked ligand atoms with midpoint badges + floating Measured Distances HUD), **Reframe (`R`)** camera reset, collapsible **3D Overlay Legend**, and PNG snapshot export.
+### 9. Apple-Crafted 3D Workbench UX
+- Persistent **3Dmol.js** WebGL viewport (`keepH: true`) with Cartoon, Sticks, Ball & Stick, and Surface modes, QA Issues Heatmap, B-factor/pLDDT coloring, 3D Disulfide/Metal/H-Bond cylinders (`S–S/HB`), 3D Clash spheres, Pocket clouds, MOLE Tunnel tubes, HOLE R/G/B Pore surface, Ghost Superposition, **3D Phospholipid Bilayer**, **2-Click 3D Distance Ruler (Å)** (across protein & ligand atoms with midpoint badges + floating Measured Distances HUD), **Reframe (`R`)** camera reset, collapsible **3D Overlay Legend**, and PNG snapshot export.
 - Interactive **1-Letter Sequence Ribbon Strip** docked above the 3D viewport.
 - **Apple Spotlight Command Palette (`⌘K`)** to jump straight to any residue (`HIS 18`, `A:41`), chain, ligand, or action; **`⌘Z` / `⌘⇧Z`** Undo/Redo; **Light & Dark Mode**; and disk-persisted sessions in `~/.pandaprotein/sessions`.
 
@@ -156,7 +151,7 @@ PandaProtein/
 │   └── pandaprotein_logo.png        # 512×512 transparent macOS squircle GitHub logo
 ├── backend/
 │   ├── cli.py                       # `pandaprotein` CLI launcher (auto-port + browser open)
-│   ├── main.py                      # FastAPI REST & SSE API + static UI serving
+│   ├── main.py                      # FastAPI REST API + static UI serving
 │   ├── models.py                    # Pydantic request/response schemas
 │   ├── session_manager.py           # User-home persisted sessions, Baseline diff & COOT Undo/Redo
 │   ├── static/                      # Bundled compiled React UI for zero-Node `pip install`
@@ -173,7 +168,6 @@ PandaProtein/
 │       ├── pocket_engine.py         # 3D concave druggable binding pocket detector
 │       ├── mole_engine.py           # MOLE 2.5 Voronoi tunnels/pores, CSV/PyMOL export & mutation scanner
 │       ├── hole_engine.py           # HOLE (Smart et al. 1996) ion-channel pore radius & conductance engine
-│       ├── docking_engine.py        # Live SSE 3D molecular docking (Vina 6-term physics + RDKit ligand prep)
 │       ├── analysis_engine.py       # Kabsch SVD RMSD superposition, bilayer +Z align, salt bridges & π–π
 │       ├── batch_engine.py          # Multi-structure batch preparation pipeline & unified ZIP bundler
 │       ├── rename_engine.py         # File, chain swap/delete/merge, residue & ligand renaming
@@ -197,7 +191,6 @@ PandaProtein/
 │           ├── ClashesPanel.tsx     # MolProbity clashscore, rotamer outliers & NQH flips
 │           ├── LigandPanel.tsx      # RDKit 2D SVG, contacts, metals, pockets & .pdbqt/.mol2 prep
 │           ├── MolePanel.tsx        # MOLE tunnels/pores, HOLE pore radius & bottleneck mutation scanner
-│           ├── DockingPanel.tsx     # Live 3D Molecular Docking Studio (SSE stream, Vina 6-term HUD & replay)
 │           ├── AnalysisPanel.tsx    # Kabsch RMSD diff, bilayer +Z align & salt-bridge/π–π networks
 │           ├── BatchPanel.tsx       # Multi-structure batch preparation queue & unified ZIP export
 │           ├── ExportPanel.tsx      # CHARMM36m/AMBER GROMACS test, solvation calc & downloads
