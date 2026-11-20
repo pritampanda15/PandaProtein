@@ -737,3 +737,59 @@ export interface BatchPrepResult {
     error?: string | null;
   }>;
 }
+
+export interface HoleProfilePoint {
+  axis_coord_A: number;
+  radius_A: number;
+  x: number;
+  y: number;
+  z: number;
+  color: string;
+  state: 'closed' | 'single_file' | 'hydrated';
+  closest_residue: string;
+  closest_atom: string;
+  lining_residues: string[];
+}
+
+export interface HoleLiningResidue {
+  chain: string;
+  resseq: number;
+  icode: string;
+  resname: string;
+  key: string;
+  min_pore_radius_A: number;
+  axis_min_A: number;
+  axis_max_A: number;
+  closest_atom: string;
+  backbone_contact: boolean;
+  is_constriction: boolean;
+}
+
+export interface HoleAnalysisData {
+  axis_label: string;
+  cvect: [number, number, number];
+  cpoint: [number, number, number];
+  params?: {
+    axis_mode: 'auto' | 'z' | 'y' | 'x';
+    step: number;
+    end_radius: number;
+    include_hetatms: boolean;
+  };
+  profile: HoleProfilePoint[];
+  lining_residues: HoleLiningResidue[];
+  summary: {
+    length_A: number;
+    min_radius_A: number;
+    max_radius_A: number;
+    mean_radius_A: number;
+    constriction_coord_A: number;
+    constriction_point: [number, number, number];
+    constriction_residues: string[];
+    gate_status: string;
+    conductance_pS: number;
+    pore_resistance_GOhm: number;
+    red_fraction_pct: number;
+    green_fraction_pct: number;
+    blue_fraction_pct: number;
+  };
+}

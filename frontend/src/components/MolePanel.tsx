@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { api } from '../api/client';
 import type {
+  HoleAnalysisData,
   MoleAnalysisData,
   MoleChannel,
   MoleColorBy,
@@ -23,9 +24,13 @@ interface MolePanelProps {
   session: StructureSessionState;
   busy: boolean;
   moleData: MoleAnalysisData | null;
+  holeData: HoleAnalysisData | null;
+  showHole3D: boolean;
   visibleIds: string[];
   colorBy: MoleColorBy;
   onUpdateMole: (data: MoleAnalysisData, visibleIds: string[]) => void;
+  onUpdateHole: (data: HoleAnalysisData, show3D: boolean) => void;
+  onToggleHole3D: () => void;
   onToggleVisible: (id: string) => void;
   onSetAllVisible: (ids: string[]) => void;
   onChangeColorBy: (c: MoleColorBy) => void;
@@ -40,9 +45,13 @@ export const MolePanel: React.FC<MolePanelProps> = ({
   session,
   busy,
   moleData,
+  holeData,
+  showHole3D,
   visibleIds,
   colorBy,
   onUpdateMole,
+  onUpdateHole,
+  onToggleHole3D,
   onToggleVisible,
   onSetAllVisible,
   onChangeColorBy,
@@ -52,6 +61,7 @@ export const MolePanel: React.FC<MolePanelProps> = ({
   onSetBusy,
   onError,
 }) => {
+  const [engineTab, setEngineTab] = useState<'mole' | 'hole'>('mole');
   const [mode, setMode] = useState<'both' | 'tunnels' | 'pores'>('both');
   const [startMode, setStartMode] = useState<'auto' | 'ligand' | 'pocket' | 'residues' | 'coordinates'>('auto');
   const [customResidues, setCustomResidues] = useState('A:41, A:145');
@@ -63,6 +73,13 @@ export const MolePanel: React.FC<MolePanelProps> = ({
   const [minLength, setMinLength] = useState(5.0);
   const [maxTunnels, setMaxTunnels] = useState(6);
   const [includeHetatms, setIncludeHetatms] = useState(false);
+
+  // HOLE Ion-Channel Pore Radius controls
+  const [holeAxis, setHoleAxis] = useState<'auto' | 'z' | 'y' | 'x'>('auto');
+  const [holeStep, setHoleStep] = useState(0.5);
+  const [holeEndRadius, setHoleEndRadius] = useState(10.0);
+  const [holeIncludeHet, setHoleIncludeHet] = useState(false);
+  const [holeHoverIdx, setHoleHoverIdx] = useState<number | null>(null);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
@@ -169,6 +186,44 @@ export const MolePanel: React.FC<MolePanelProps> = ({
     }
   };
 
+  const runHoleAnalysis = async () => {
+    onSetBusy('Computing HOLE Ion-Channel Pore Radius Profile…');
+    try {
+      const data = await api.analyzeHole(session.session_id, {
+        axis_mode: holeAxis,
+        step: holeStep,
+        end_radius: holeEndRadius,
+        include_hetatms: holeIncludeHet,
+      });
+      onUpdateHole(data, true);
+    } catch (e: any) {
+      onError(e?.message || 'HOLE pore radius calculation failed');
+    } finally {
+      onSetBusy(null);
+    }
+  };
+
+  const handleExportHole = async (fmt: 'csv' | 'pdb' | 'json') => {
+    onSetBusy(`Exporting HOLE pore profile (${fmt.toUpperCase()})…`);
+    try {
+      await api.exportHole(
+        session.session_id,
+        {
+          axis_mode: holeAxis,
+          step: holeStep,
+          end_radius: holeEndRadius,
+          include_hetatms: holeIncludeHet,
+          format: fmt,
+        },
+        `hole_pore.${fmt}`
+      );
+    } catch (e: any) {
+      onError(e?.message || 'HOLE export failed');
+    } finally {
+      onSetBusy(null);
+    }
+  };
+
   // Build SVG MOLE Radius + Hydropathy Profile Plot
   const svgW = 520;
   const svgH = 165;
@@ -203,57 +258,453 @@ export const MolePanel: React.FC<MolePanelProps> = ({
 
   const hoveredPt = hoverIdx !== null && profile[hoverIdx] ? profile[hoverIdx] : null;
 
+  // HOLE SVG Profile Chart coordinates
+  const holeProfile = holeData?.profile || [];
+  const holeSMin = holeProfile.length ? holeProfile[0].axis_coord_A : -20;
+  const holeSMax = holeProfile.length ? holeProfile[holeProfile.length - 1].axis_coord_A : 20;
+  const holeSSpan = Math.max(5, holeSMax - holeSMin);
+  const holeRMax = Math.max(4.0, ...holeProfile.map((p) => p.radius_A));
+  const hpx = (s: number) => padL + ((s - holeSMin) / holeSSpan) * (svgW - padL - padR);
+  const hpy = (r: number) => padT + (1 - r / holeRMax) * (svgH - padT - padB);
+  const holeHoverPt = holeHoverIdx !== null && holeProfile[holeHoverIdx] ? holeProfile[holeHoverIdx] : null;
+
   return (
     <div className="space-y-4 pb-6">
-      {/* Header */}
-      <div className="apple-card p-4 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#007AFF] dark:text-[#0A84FF]">
-            MOLE 2.5 Voronoi Void-Space Analysis
+      {/* Header + Engine Mode Switcher (MOLE 2.5 vs HOLE Ion-Channel Pore) */}
+      <div className="apple-card p-4 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#007AFF] dark:text-[#0A84FF]">
+              {engineTab === 'mole'
+                ? 'MOLE 2.5 Voronoi Void-Space Analysis'
+                : 'HOLE Ion-Channel Pore Radius & Conductance (Smart et al. 1996)'}
+            </div>
+            <h2 className="text-[16px] font-semibold tracking-[-0.015em]">
+              {engineTab === 'mole'
+                ? 'Substrate Tunnels, Transmembrane Pores & Bottleneck Engineering'
+                : 'Exact Maximum-Inscribed-Sphere Pore Radius R(z) & Gate Profiling'}
+            </h2>
           </div>
-          <h2 className="text-[16px] font-semibold tracking-[-0.015em]">
-            Substrate Tunnels, Transmembrane Pores &amp; Bottleneck Engineering
-          </h2>
+          <div className="apple-segmented">
+            <button
+              onClick={() => setEngineTab('mole')}
+              className={`apple-segmented-item ${engineTab === 'mole' ? 'apple-segmented-active' : 'text-[#6E6E73]'}`}
+            >
+              MOLE 2.5 Tunnels
+            </button>
+            <button
+              onClick={() => {
+                setEngineTab('hole');
+                if (!holeData && !busy) {
+                  void runHoleAnalysis();
+                }
+              }}
+              className={`apple-segmented-item ${engineTab === 'hole' ? 'apple-segmented-active' : 'text-[#6E6E73]'}`}
+            >
+              HOLE Pore Radius
+            </button>
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-1.5">
-          {moleData && allChannels.length > 0 && (
+
+        <div className="flex flex-wrap items-center justify-end gap-1.5">
+          {engineTab === 'mole' ? (
             <>
-              <button
-                disabled={busy}
-                onClick={() => handleExport('csv')}
-                className="apple-btn-secondary text-[12px]"
-                title="Download profile CSV with per-slice & bottleneck residues"
-              >
-                <Download className="w-3.5 h-3.5" /> Profile CSV
+              {moleData && allChannels.length > 0 && (
+                <>
+                  <button
+                    disabled={busy}
+                    onClick={() => handleExport('csv')}
+                    className="apple-btn-secondary text-[12px]"
+                    title="Download profile CSV with per-slice & bottleneck residues"
+                  >
+                    <Download className="w-3.5 h-3.5" /> Profile CSV
+                  </button>
+                  <button
+                    disabled={busy}
+                    onClick={() => handleExport('residues_csv')}
+                    className="apple-btn-secondary text-[12px]"
+                    title="Download residue-by-residue lining & bottleneck CSV table"
+                  >
+                    <Download className="w-3.5 h-3.5" /> Residues CSV
+                  </button>
+                  <button
+                    disabled={busy}
+                    onClick={() => handleExport('pdb')}
+                    className="apple-btn-secondary text-[12px]"
+                    title="Download PyMOL / ChimeraX pseudo-atom PDB with radii in B-factor"
+                  >
+                    <Download className="w-3.5 h-3.5" /> PyMOL PDB
+                  </button>
+                  <button disabled={busy} onClick={() => handleExport('json')} className="apple-btn-secondary text-[12px]">
+                    JSON
+                  </button>
+                </>
+              )}
+              <button disabled={busy} onClick={runAnalysis} className="apple-btn-primary">
+                <Play className="w-3.5 h-3.5 fill-current" />
+                <span>Compute Tunnels</span>
               </button>
-              <button
-                disabled={busy}
-                onClick={() => handleExport('residues_csv')}
-                className="apple-btn-secondary text-[12px]"
-                title="Download residue-by-residue lining & bottleneck CSV table"
-              >
-                <Download className="w-3.5 h-3.5" /> Residues CSV
-              </button>
-              <button
-                disabled={busy}
-                onClick={() => handleExport('pdb')}
-                className="apple-btn-secondary text-[12px]"
-                title="Download PyMOL / ChimeraX pseudo-atom PDB with radii in B-factor"
-              >
-                <Download className="w-3.5 h-3.5" /> PyMOL PDB
-              </button>
-              <button disabled={busy} onClick={() => handleExport('json')} className="apple-btn-secondary text-[12px]">
-                JSON
+            </>
+          ) : (
+            <>
+              {holeData && holeProfile.length > 0 && (
+                <>
+                  <button
+                    onClick={onToggleHole3D}
+                    className="apple-btn-secondary text-[12px]"
+                  >
+                    {showHole3D ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    {showHole3D ? 'Hide 3D Pore' : 'Show 3D Pore'}
+                  </button>
+                  <button
+                    disabled={busy}
+                    onClick={() => handleExportHole('csv')}
+                    className="apple-btn-secondary text-[12px]"
+                  >
+                    <Download className="w-3.5 h-3.5" /> HOLE CSV
+                  </button>
+                  <button
+                    disabled={busy}
+                    onClick={() => handleExportHole('pdb')}
+                    className="apple-btn-secondary text-[12px]"
+                    title="PyMOL / ChimeraX / VMD HOLE sphere PDB (radii in B-factor, R/G/B zones in chain)"
+                  >
+                    <Download className="w-3.5 h-3.5" /> PyMOL/VMD PDB
+                  </button>
+                  <button disabled={busy} onClick={() => handleExportHole('json')} className="apple-btn-secondary text-[12px]">
+                    JSON
+                  </button>
+                </>
+              )}
+              <button disabled={busy} onClick={runHoleAnalysis} className="apple-btn-primary">
+                <Play className="w-3.5 h-3.5 fill-current" />
+                <span>Run HOLE Profile</span>
               </button>
             </>
           )}
-          <button disabled={busy} onClick={runAnalysis} className="apple-btn-primary">
-            <Play className="w-3.5 h-3.5 fill-current" />
-            <span>Compute Tunnels</span>
-          </button>
         </div>
       </div>
 
+      {/* ==================== HOLE ION-CHANNEL PORE RADIUS MODE ==================== */}
+      {engineTab === 'hole' && (
+        <div className="space-y-4">
+          <div className="apple-card p-4 space-y-3">
+            <div className="flex items-center gap-2 text-[13px] font-semibold">
+              <SlidersHorizontal className="w-4 h-4 text-[#007AFF]" />
+              <span>HOLE Channel Axis &amp; Slice Parameters</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 text-[12px]">
+              <div className="sm:col-span-5">
+                <label className="text-[10.5px] text-[#86868B] block mb-1">Channel Axis (cvect)</label>
+                <select
+                  value={holeAxis}
+                  onChange={(e) => setHoleAxis(e.target.value as 'auto' | 'z' | 'y' | 'x')}
+                  className="apple-select w-full"
+                >
+                  <option value="auto">Auto (Oligomer Symmetry / TM Belt)</option>
+                  <option value="z">Laboratory +Z Axis (Membrane-Aligned)</option>
+                  <option value="y">Laboratory +Y Axis</option>
+                  <option value="x">Laboratory +X Axis</option>
+                </select>
+              </div>
+              <div className="sm:col-span-2">
+                <label className="text-[10.5px] text-[#86868B] block mb-1">Slice Step</label>
+                <select
+                  value={holeStep}
+                  onChange={(e) => setHoleStep(parseFloat(e.target.value))}
+                  className="apple-select w-full font-mono"
+                >
+                  <option value={0.25}>0.25 Å</option>
+                  <option value={0.5}>0.50 Å</option>
+                  <option value={0.75}>0.75 Å</option>
+                  <option value={1.0}>1.00 Å</option>
+                </select>
+              </div>
+              <div className="sm:col-span-2">
+                <label className="text-[10.5px] text-[#86868B] block mb-1">End Cutoff</label>
+                <select
+                  value={holeEndRadius}
+                  onChange={(e) => setHoleEndRadius(parseFloat(e.target.value))}
+                  className="apple-select w-full font-mono"
+                >
+                  <option value={8.0}>8.0 Å</option>
+                  <option value={10.0}>10.0 Å</option>
+                  <option value={12.0}>12.0 Å</option>
+                  <option value={15.0}>15.0 Å</option>
+                </select>
+              </div>
+              <div className="sm:col-span-3 flex items-end">
+                <label className="w-full flex items-center justify-between px-2.5 py-2 rounded-xl bg-black/[0.03] dark:bg-white/[0.04] cursor-pointer text-[11.5px]">
+                  <span>Include Ligands</span>
+                  <input
+                    type="checkbox"
+                    checked={holeIncludeHet}
+                    onChange={(e) => setHoleIncludeHet(e.target.checked)}
+                    className="accent-[#007AFF] w-3.5 h-3.5"
+                  />
+                </label>
+              </div>
+            </div>
+          </div>
+
+          {holeData && (
+            <>
+              {/* HOLE KPI Summary Strip */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                <div className="apple-card p-3">
+                  <div className="text-[11px] text-[#86868B]">Min Pore Radius (Gate)</div>
+                  <div
+                    className={`text-[18px] font-bold font-mono ${
+                      holeData.summary.min_radius_A < 1.15
+                        ? 'text-[#FF3B30]'
+                        : holeData.summary.min_radius_A <= 2.3
+                        ? 'text-[#34C759]'
+                        : 'text-[#007AFF]'
+                    }`}
+                  >
+                    {holeData.summary.min_radius_A} Å
+                  </div>
+                </div>
+                <div className="apple-card p-3">
+                  <div className="text-[11px] text-[#86868B]">Pore Length</div>
+                  <div className="text-[18px] font-bold font-mono">{holeData.summary.length_A} Å</div>
+                </div>
+                <div className="apple-card p-3">
+                  <div className="text-[11px] text-[#86868B]">Est. Conductance</div>
+                  <div className="text-[18px] font-bold font-mono text-[#007AFF] dark:text-[#0A84FF]">
+                    {holeData.summary.conductance_pS} pS
+                  </div>
+                </div>
+                <div className="apple-card p-3">
+                  <div className="text-[11px] text-[#86868B]">Max / Mean Radius</div>
+                  <div className="text-[15px] font-bold font-mono mt-0.5">
+                    {holeData.summary.max_radius_A} / {holeData.summary.mean_radius_A} Å
+                  </div>
+                </div>
+              </div>
+
+              {/* Gate Status + Axis Pill Bar */}
+              <div className="apple-card p-3.5 flex flex-wrap items-center justify-between gap-2 text-[12px]">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className={`apple-pill font-semibold ${
+                      holeData.summary.min_radius_A < 1.15
+                        ? 'bg-[#FF3B30]/15 text-[#D70015] dark:text-[#FF453A]'
+                        : holeData.summary.min_radius_A <= 2.3
+                        ? 'bg-[#34C759]/15 text-[#1B8A38] dark:text-[#30D158]'
+                        : 'bg-[#007AFF]/15 text-[#007AFF] dark:text-[#0A84FF]'
+                    }`}
+                  >
+                    {holeData.summary.gate_status}
+                  </span>
+                  <span className="text-[11px] font-mono text-[#86868B]">
+                    Axis: {holeData.axis_label} [{holeData.cvect.join(', ')}]
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-[11px] font-mono">
+                  <span className="text-[#FF3B30]">● Red {holeData.summary.red_fraction_pct}%</span>
+                  <span className="text-[#34C759]">● Green {holeData.summary.green_fraction_pct}%</span>
+                  <span className="text-[#007AFF]">● Blue {holeData.summary.blue_fraction_pct}%</span>
+                </div>
+              </div>
+
+              {/* Interactive HOLE Radius Profile SVG Chart */}
+              {holeProfile.length > 0 ? (
+                <div className="apple-card p-4 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="text-[13.5px] font-semibold">
+                      HOLE Pore Radius Profile — R (Å) vs. Channel Axis Coordinate (Å)
+                    </div>
+                    {holeHoverPt && (
+                      <div className="px-2.5 py-1 rounded-xl bg-black/[0.04] dark:bg-white/[0.07] text-[11px] font-mono">
+                        z={holeHoverPt.axis_coord_A} Å · R={holeHoverPt.radius_A} Å · {holeHoverPt.closest_residue}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="rounded-2xl bg-black/[0.025] dark:bg-white/[0.03] p-2">
+                    <svg
+                      viewBox={`0 0 ${svgW} ${svgH}`}
+                      className="w-full h-44 overflow-visible"
+                      onMouseLeave={() => setHoleHoverIdx(null)}
+                    >
+                      {/* Standard HOLE Permeability Thresholds: 1.15 Å (Red) & 2.30 Å (Green) */}
+                      {[
+                        [1.15, '#FF3B30', '1.15 Å (1 H₂O)'],
+                        [2.3, '#34C759', '2.30 Å (Hydrated)'],
+                      ].map(([val, col, lbl]) => {
+                        const rNum = Number(val);
+                        if (rNum > holeRMax) return null;
+                        return (
+                          <g key={String(lbl)}>
+                            <line
+                              x1={padL}
+                              y1={hpy(rNum)}
+                              x2={svgW - padR}
+                              y2={hpy(rNum)}
+                              stroke={String(col)}
+                              strokeWidth="1"
+                              strokeDasharray="4 3"
+                              opacity="0.7"
+                            />
+                            <text
+                              x={svgW - padR - 2}
+                              y={hpy(rNum) - 3}
+                              textAnchor="end"
+                              fontSize="8.5"
+                              fill={String(col)}
+                              fontFamily="monospace"
+                            >
+                              {lbl}
+                            </text>
+                          </g>
+                        );
+                      })}
+
+                      {/* Y-axis ticks */}
+                      {[0, 2, 4, 6, 8].map((rv) =>
+                        rv <= holeRMax ? (
+                          <text
+                            key={rv}
+                            x={padL - 6}
+                            y={hpy(rv) + 3}
+                            textAnchor="end"
+                            fontSize="9"
+                            className="fill-[#86868B]"
+                            fontFamily="monospace"
+                          >
+                            {rv}Å
+                          </text>
+                        ) : null
+                      )}
+
+                      {/* Colored line segments matching classic HOLE Red / Green / Blue zones */}
+                      {holeProfile.slice(1).map((pt, idx) => {
+                        const prev = holeProfile[idx];
+                        return (
+                          <line
+                            key={idx}
+                            x1={hpx(prev.axis_coord_A)}
+                            y1={hpy(prev.radius_A)}
+                            x2={hpx(pt.axis_coord_A)}
+                            y2={hpy(pt.radius_A)}
+                            stroke={pt.color}
+                            strokeWidth="2.6"
+                            strokeLinecap="round"
+                          />
+                        );
+                      })}
+
+                      {/* Constriction Gate Marker */}
+                      <line
+                        x1={hpx(holeData.summary.constriction_coord_A)}
+                        y1={padT}
+                        x2={hpx(holeData.summary.constriction_coord_A)}
+                        y2={svgH - padB}
+                        stroke="#FF3B30"
+                        strokeWidth="1.2"
+                        strokeDasharray="3 3"
+                      />
+                      <circle
+                        cx={hpx(holeData.summary.constriction_coord_A)}
+                        cy={hpy(holeData.summary.min_radius_A)}
+                        r="4.5"
+                        fill="#FF3B30"
+                        stroke="#FFFFFF"
+                        strokeWidth="1.5"
+                      />
+
+                      {/* Hover targets */}
+                      {holeProfile.map((pt, i) => (
+                        <circle
+                          key={`hhit-${i}`}
+                          cx={hpx(pt.axis_coord_A)}
+                          cy={hpy(pt.radius_A)}
+                          r={holeHoverIdx === i ? 4 : 6}
+                          fill={holeHoverIdx === i ? pt.color : 'transparent'}
+                          className="cursor-crosshair"
+                          onMouseEnter={() => setHoleHoverIdx(i)}
+                        />
+                      ))}
+
+                      <text
+                        x={svgW / 2}
+                        y={svgH - 6}
+                        textAnchor="middle"
+                        fontSize="9"
+                        className="fill-[#86868B]"
+                        fontFamily="monospace"
+                      >
+                        Channel Axis Coordinate ({holeSMin} Å → {holeSMax} Å) · Classic HOLE Red (&lt;1.15 Å) / Green (1.15–2.30 Å) / Blue (&gt;2.30 Å)
+                      </text>
+                    </svg>
+                  </div>
+
+                  {/* Pore-Lining & Constriction Gate Residues Table */}
+                  <div className="space-y-1.5">
+                    <div className="text-[12.5px] font-semibold">
+                      Constriction Gate &amp; Pore-Lining Residues ({holeData.lining_residues.length})
+                    </div>
+                    <div className="max-h-56 overflow-y-auto divide-y divide-black/[0.05] dark:divide-white/[0.06] text-[12px]">
+                      {holeData.lining_residues.map((lr) => (
+                        <div
+                          key={lr.key}
+                          className="flex items-center justify-between gap-2 py-1.5 px-2 hover:bg-black/[0.025] dark:hover:bg-white/[0.03] rounded-lg transition"
+                        >
+                          <button
+                            onClick={() =>
+                              onSelectResidue(
+                                { chain: lr.chain, resseq: lr.resseq, icode: lr.icode, resname: lr.resname, key: lr.key },
+                                true
+                              )
+                            }
+                            className="flex items-center gap-2 text-left min-w-0"
+                          >
+                            <span className="font-mono font-semibold">
+                              {lr.resname} {lr.key}
+                            </span>
+                            {lr.is_constriction && (
+                              <span className="apple-pill bg-[#FF3B30]/15 text-[#D70015] dark:text-[#FF453A]">
+                                Constriction Gate
+                              </span>
+                            )}
+                            <span className="text-[11px] font-mono text-[#86868B]">
+                              R_min={lr.min_pore_radius_A} Å · z={lr.axis_min_A}..{lr.axis_max_A} Å · atom {lr.closest_atom}
+                            </span>
+                          </button>
+                          <button
+                            onClick={() =>
+                              onJumpToCootMutate({
+                                chain: lr.chain,
+                                resseq: lr.resseq,
+                                icode: lr.icode,
+                                resname: lr.resname,
+                                key: lr.key,
+                              })
+                            }
+                            className="apple-btn-secondary !py-0.5 !px-2 text-[11px] shrink-0"
+                          >
+                            <Dna className="w-3 h-3 text-[#AF52DE]" />
+                            COOT Mutate
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="apple-card p-5 text-[13px] text-[#86868B]">
+                  No enclosed channel pore detected along the selected axis. Try aligning the structure to +Z in Compare &amp; Nets or switching the Channel Axis selector above.
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ==================== MOLE 2.5 VORONOI TUNNELS MODE ==================== */}
+      {engineTab === 'mole' && (
+      <>
       {/* Controls Card */}
       <div className="apple-card p-4 space-y-3.5">
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -856,6 +1307,8 @@ export const MolePanel: React.FC<MolePanelProps> = ({
             </>
           )}
         </>
+      )}
+      </>
       )}
     </div>
   );

@@ -54,15 +54,14 @@
 - 3D binding pocket contact mapping (H-bonds, hydrophobic contacts, metal coordination spheres).
 - Built-in **3D Druggable Cavity Detector** (volume in $\text{Å}^3$, druggability score, hydrophobic %, lining residues, translucent 3D pocket cloud overlay, and automatic AutoDock Vina grid boxes for apo proteins).
 
-### 6. MOLE 2.5 Tunnels, Transmembrane Pores & Bottleneck Engineering
-- **3D Voronoi / Delaunay Void-Space Engine**: Automatically discovers substrate access **Tunnels** (from active-site ligands, cavities, custom catalytic residues, or 3D coordinates to the molecular surface) and **Trans-Protein Pores** spanning opposite faces.
-- **Interactive Radius & Hydropathy Profile**: Live SVG chart plotting radius (Å) vs. tunnel distance with a Kyte–Doolittle hydropathy ribbon, Zimmerman polarity, mutability, net charge, tortuosity, throughput, and highlighted narrowest bottleneck sphere in 3D.
-- **Automated Bottleneck Mutation Scanner**: In-silico `→ ALA / GLY / VAL` mutation scan at bottleneck-forming residues ranking candidates by predicted tunnel widening ($\Delta r$ in Å), with **1-click Apply Mutation** (mutates via COOT and immediately recomputes the widened tunnel).
-- **Rich Scientific Exports**: **Profile CSV** (includes per-slice residues, bottleneck residues, and full lining residues), **Residues CSV** (residue-by-residue table), **PyMOL/ChimeraX pseudo-atom PDB** (radii stored in B-factor), and **JSON**.
+### 6. MOLE 2.5 Tunnels & HOLE Ion-Channel Pore Radius (Smart et al. 1996)
+- **MOLE 2.5 3D Voronoi Engine**: Automatically discovers substrate access **Tunnels** (from active-site ligands, cavities, custom catalytic residues, or 3D coordinates to the molecular surface) and **Trans-Protein Pores** spanning opposite faces, with interactive radius/hydropathy SVG charts and an **In-Silico Bottleneck Mutation Scanner** (`→ ALA/GLY/VAL` with 1-click Apply Mutation).
+- **HOLE Ion-Channel Pore Radius & Conductance Engine**: Computes exact maximum-inscribed-sphere pore radius profiles $R(s)$ perpendicular to the channel axis (auto-detecting oligomeric symmetry axes for trimers/tetramers/pentamers/hexamers, transmembrane belts, or manual `+Z/+Y/+X`), classic **Red (`<1.15 Å`) / Green (`1.15–2.30 Å`) / Blue (`>2.30 Å`)** 3D pore rendering & threshold plots, constriction-gate residue mapping (e.g., KcsA `TVGYG` selectivity filter), and Smart et al. pore conductance ($G$ in pS).
+- **Rich Scientific Exports**: **Profile CSV** & **Residues CSV**, **HOLE CSV**, **PyMOL / ChimeraX / VMD pseudo-atom PDB** (pore radii in B-factor), and **JSON**.
 
-### 7. Structural Superposition, Membrane Orientation & Non-Covalent Networks
+### 7. Structural Superposition, 3D Phospholipid Bilayer & Non-Covalent Networks
 - **Before vs. After & Reference Superposition**: Exact **Kabsch SVD** $C_\alpha$ alignment comparing the prepared structure against either the original pre-prep input or any uploaded second PDB/mmCIF/GRO reference — reporting $C_\alpha$, backbone, and all-heavy RMSD, per-residue displacement chart, and a **3D translucent ghost overlay**.
-- **OPM-Style Transmembrane Bilayer Orientation (+Z Aligner)**: Estimates the 30 Å hydrophobic transmembrane belt normal, renders translucent 3D outer/inner bilayer discs, and aligns the channel/membrane axis onto **+Z** centered at `(0, 0, 0)` in one click for GROMACS/CHARMM-GUI membrane simulations.
+- **OPM-Style Transmembrane Bilayer (+Z Aligner & 3D Lipid Bilayer)**: Slides a 30 Å surface-weighted hydrophobic slab to locate the true transmembrane belt even in multi-domain receptors, renders a **realistic 3D phospholipid bilayer** (outer amber & inner cyan phosphate headgroups with inward-facing dual hydrophobic acyl tails that wrap cleanly around the protein), and aligns the channel/membrane axis onto **+Z** centered at `(0, 0, 0)` in one click.
 - **Non-Covalent Interaction Networks**: Automated detection of **Salt Bridges** (intra- & inter-chain), **Aromatic $\pi\text{–}\pi$ Stacking** (parallel-displaced & T-shaped), and **Inter-Chain Interface Contacts**.
 
 ### 8. Multi-Target Export Studio, Live GROMACS Verification & Batch Prep Queue
@@ -141,6 +140,7 @@ PandaProtein/
 │       ├── ligand_engine.py         # RDKit 2D depictions, Ro5, contacts, conformers & .pdbqt/.mol2 prep
 │       ├── pocket_engine.py         # 3D concave druggable binding pocket detector
 │       ├── mole_engine.py           # MOLE 2.5 Voronoi tunnels/pores, CSV/PyMOL export & mutation scanner
+│       ├── hole_engine.py           # HOLE (Smart et al. 1996) ion-channel pore radius & conductance engine
 │       ├── analysis_engine.py       # Kabsch SVD RMSD superposition, bilayer +Z align, salt bridges & π–π
 │       ├── batch_engine.py          # Multi-structure batch preparation pipeline & unified ZIP bundler
 │       ├── rename_engine.py         # File, chain swap/delete/merge, residue & ligand renaming
@@ -183,6 +183,7 @@ PandaProtein/
 | `⌘K` / `Ctrl+K` | Open Spotlight Quick Jump & Command Palette |
 | `⌘Z` / `Ctrl+Z` | Undo last COOT / PDBFixer / PROPKA / Chain edit |
 | `⌘⇧Z` / `Ctrl+Y` | Redo edit |
+| `R` | Reframe 3D viewport back to the clean default protein view |
 
 ---
 

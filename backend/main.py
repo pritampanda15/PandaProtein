@@ -50,6 +50,11 @@ from .engines.export_engine import (
     generate_vina_config,
     run_gromacs_preflight_test,
 )
+from .engines.hole_engine import (
+    analyze_hole_pore,
+    export_hole_csv,
+    export_hole_pdb,
+)
 from .engines.ligand_engine import export_ligand_format, generate_ligand_conformers_sdf
 from .engines.mole_engine import (
     analyze_tunnels_and_pores,
@@ -89,6 +94,8 @@ from .models import (
     ExportRequest,
     FetchAlphaFoldRequest,
     FetchRCSBRequest,
+    HoleAnalyzeRequest,
+    HoleExportRequest,
     LoadSampleRequest,
     MergeChainsRequest,
     MoleAnalyzeRequest,
@@ -793,6 +800,56 @@ def mole_export_endpoint(sid: str, req: MoleExportRequest) -> Response:
         content=json.dumps(data, indent=2),
         media_type="application/json",
         headers={"Content-Disposition": f'attachment; filename="{stem}_mole_tunnels.json"'},
+    )
+
+
+# ---------------------------------------------------------------------------
+# HOLE Ion-Channel Pore Radius & Conductance Engine (Smart et al. 1996)
+# ---------------------------------------------------------------------------
+
+@app.post("/api/sessions/{sid}/hole/analyze")
+def hole_analyze_endpoint(sid: str, req: HoleAnalyzeRequest) -> Dict[str, Any]:
+    sess = _get_session(sid)
+    try:
+        return analyze_hole_pore(
+            sess.structure,
+            axis_mode=req.axis_mode,
+            step=req.step,
+            end_radius=req.end_radius,
+            custom_point=req.custom_point,
+            include_hetatms=req.include_hetatms,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"HOLE pore analysis failed: {exc}")
+
+
+@app.post("/api/sessions/{sid}/hole/export")
+def hole_export_endpoint(sid: str, req: HoleExportRequest) -> Response:
+    sess = _get_session(sid)
+    stem = Path(sess.name).stem
+    data = analyze_hole_pore(
+        sess.structure,
+        axis_mode=req.axis_mode,
+        step=req.step,
+        end_radius=req.end_radius,
+        custom_point=req.custom_point,
+        include_hetatms=req.include_hetatms,
+    )
+    if req.format == "csv":
+        return PlainTextResponse(
+            export_hole_csv(data),
+            media_type="text/csv",
+            headers={"Content-Disposition": f'attachment; filename="{stem}_hole_pore.csv"'},
+        )
+    if req.format == "pdb":
+        return PlainTextResponse(
+            export_hole_pdb(data),
+            headers={"Content-Disposition": f'attachment; filename="{stem}_hole_pore.pdb"'},
+        )
+    return Response(
+        content=json.dumps(data, indent=2),
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{stem}_hole_pore.json"'},
     )
 
 

@@ -106,7 +106,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({ activeTab, onSelect, ses
           id: 'tunnels',
           label: 'Tunnels & Pores',
           icon: <Waypoints className="w-4 h-4" />,
-          badge: moleCount && moleCount > 0 ? moleCount : 'MOLE',
+          badge: moleCount && moleCount > 0 ? moleCount : 'MOLE/HOLE',
           badgeTone: 'bg-[#007AFF]/15 text-[#007AFF] dark:text-[#0A84FF]',
         },
         {

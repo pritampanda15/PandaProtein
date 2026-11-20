@@ -344,24 +344,47 @@ def analyze_membrane_and_interactions(st: gemmi.Structure) -> Dict[str, Any]:
         best_hydro_out_pct = 0.0
         half_thick = 15.0  # Standard 30 Å hydrocarbon bilayer core
 
+        # Estimate surface exposure for each Cα (lipids contact outer hydrophobic surface!)
+        ca_tree = cKDTree(ca_arr)
+        nbr_counts = np.array([len(ca_tree.query_ball_point(pt, r=10.0)) for pt in ca_arr], dtype=np.float64)
+        # Surface weight: buried core residues get lower weight than lipid-facing surface residues
+        surf_w = np.clip((26.0 - nbr_counts) / 14.0, 0.25, 1.2)
+
         for ax in cand_axes:
             n_ax = ax / (np.linalg.norm(ax) + 1e-8)
             proj = centered @ n_ax
-            in_slab = np.abs(proj) <= half_thick
-            out_slab = ~in_slab
-            n_in = int(np.sum(in_slab))
-            if n_in < 10:
-                continue
-            h_in = float(np.mean(hydro_mask[in_slab]))
-            h_out = float(np.mean(hydro_mask[out_slab])) if np.any(out_slab) else 0.35
-            # Enrichment of hydrophobic residues inside the 30 Å central slab vs polar flanking caps
-            score = (h_in - h_out) * 100.0 + h_in * 25.0
-            if score > best_score:
-                best_score = score
-                best_axis = n_ax
-                best_mid = float(np.mean(proj[in_slab & hydro_mask])) if np.any(in_slab & hydro_mask) else 0.0
-                best_hydro_belt_pct = round(h_in * 100.0, 1)
-                best_hydro_out_pct = round(h_out * 100.0, 1)
+            p_min, p_max = float(np.min(proj)), float(np.max(proj))
+            # Slide the 30 Å membrane slab center along the axis to find the true TM belt
+            # even when the protein has a large extracellular or cytoplasmic domain!
+            if p_max - p_min > 36.0:
+                mids = np.linspace(p_min + half_thick * 0.85, p_max - half_thick * 0.85, 9)
+            else:
+                mids = np.array([0.0])
+
+            for mid in mids:
+                in_slab = np.abs(proj - mid) <= half_thick
+                out_slab = ~in_slab
+                n_in = int(np.sum(in_slab))
+                if n_in < 14:
+                    continue
+                w_in = surf_w[in_slab]
+                h_in_w = float(np.sum(hydro_mask[in_slab] * w_in) / (np.sum(w_in) + 1e-8))
+                h_in_raw = float(np.mean(hydro_mask[in_slab]))
+                if np.sum(out_slab) >= 8:
+                    w_out = surf_w[out_slab]
+                    h_out_w = float(np.sum(hydro_mask[out_slab] * w_out) / (np.sum(w_out) + 1e-8))
+                    h_out_raw = float(np.mean(hydro_mask[out_slab]))
+                else:
+                    h_out_w = 0.35
+                    h_out_raw = 0.35
+                # Reward high surface-exposed hydrophobic enrichment inside the 30 Å slab vs polar caps
+                score = (h_in_w - h_out_w) * 110.0 + h_in_w * 30.0 + min(n_in, 180) * 0.04
+                if score > best_score:
+                    best_score = score
+                    best_axis = n_ax
+                    best_mid = float(mid)
+                    best_hydro_belt_pct = round(h_in_raw * 100.0, 1)
+                    best_hydro_out_pct = round(h_out_raw * 100.0, 1)
 
         # Ensure normal points generally toward +Z
         if best_axis[2] < 0:
@@ -371,8 +394,15 @@ def analyze_membrane_and_interactions(st: gemmi.Structure) -> Dict[str, Any]:
         slab_center = center + best_axis * best_mid
         top_center = slab_center + best_axis * half_thick
         bot_center = slab_center - best_axis * half_thick
-        extent = float(np.max(np.linalg.norm(centered, axis=1)))
-        disc_radius = round(max(18.0, min(55.0, extent * 0.95)), 1)
+        # Compute radial extent of residues specifically inside the 30 Å membrane belt
+        proj_best = (ca_arr - slab_center) @ best_axis
+        in_best = np.abs(proj_best) <= half_thick + 3.0
+        if np.any(in_best):
+            perp = (ca_arr[in_best] - slab_center) - np.outer(proj_best[in_best], best_axis)
+            belt_r = float(np.percentile(np.linalg.norm(perp, axis=1), 95))
+        else:
+            belt_r = float(np.max(np.linalg.norm(centered, axis=1))) * 0.65
+        disc_radius = round(max(22.0, min(52.0, belt_r + 12.0)), 1)
 
         # Tilt angle relative to laboratory Z axis
         tilt_deg = round(math.degrees(math.acos(float(np.clip(best_axis[2], -1.0, 1.0)))), 1)

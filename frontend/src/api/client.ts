@@ -1,6 +1,7 @@
 import type {
   BatchPrepResult,
   GromacsTestResult,
+  HoleAnalysisData,
   InteractionsMembraneData,
   MoleAnalysisData,
   MoleMutationScanResult,
@@ -341,6 +342,46 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
+
+  analyzeHole: (
+    sid: string,
+    payload: {
+      axis_mode?: 'auto' | 'z' | 'y' | 'x';
+      step?: number;
+      end_radius?: number;
+      custom_point?: number[] | null;
+      include_hetatms?: boolean;
+    }
+  ) =>
+    request<HoleAnalysisData>(`/api/sessions/${sid}/hole/analyze`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  exportHole: async (
+    sid: string,
+    payload: Record<string, unknown>,
+    fallbackFilename: string
+  ) => {
+    const res = await fetch(`/api/sessions/${sid}/hole/export`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(`HOLE export failed (${res.status})`);
+    const blob = await res.blob();
+    const cd = res.headers.get('Content-Disposition') || '';
+    const match = cd.match(/filename="([^"]+)"/);
+    const filename = match ? match[1] : fallbackFilename;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  },
 
   exportLigand: async (sid: string, ligand_id: string, format: 'pdbqt' | 'mol2' | 'sdf' | 'pdb', ph = 7.4) => {
     const res = await fetch(`/api/sessions/${sid}/ligands/export`, {

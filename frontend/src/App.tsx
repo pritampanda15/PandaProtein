@@ -20,6 +20,7 @@ import { TopBar } from './components/TopBar';
 import { ValidationPanel } from './components/ValidationPanel';
 import { Viewer3D, type ChainHighlight } from './components/Viewer3D';
 import type {
+  HoleAnalysisData,
   MembraneInfo,
   MoleAnalysisData,
   MoleColorBy,
@@ -43,6 +44,8 @@ export function App() {
   const [highlightedChains, setHighlightedChains] = useState<ChainHighlight | null>(null);
   const [chainFocusTrigger, setChainFocusTrigger] = useState(0);
   const [moleData, setMoleData] = useState<MoleAnalysisData | null>(null);
+  const [holeData, setHoleData] = useState<HoleAnalysisData | null>(null);
+  const [showHole3D, setShowHole3D] = useState(true);
   const [visibleMoleIds, setVisibleMoleIds] = useState<string[]>([]);
   const [moleColorBy, setMoleColorBy] = useState<MoleColorBy>('id');
   const [diffOverlayPdb, setDiffOverlayPdb] = useState<string | null>(null);
@@ -126,6 +129,7 @@ export function App() {
   const handleStateUpdate = (next: StructureSessionState, message: string) => {
     setSession(next);
     setMoleData(null);
+    setHoleData(null);
     setVisibleMoleIds([]);
     setDiffOverlayPdb(null);
     setMembraneOverlay(null);
@@ -136,6 +140,7 @@ export function App() {
     setSelectedResidue(null);
     setHighlightedChains(null);
     setMoleData(null);
+    setHoleData(null);
     setVisibleMoleIds([]);
     setDiffOverlayPdb(null);
     setMembraneOverlay(null);
@@ -386,6 +391,8 @@ export function App() {
                     session={session}
                     busy={!!busy}
                     moleData={moleData}
+                    holeData={holeData}
+                    showHole3D={showHole3D}
                     visibleIds={visibleMoleIds}
                     colorBy={moleColorBy}
                     onUpdateMole={(data, vis) => {
@@ -395,6 +402,14 @@ export function App() {
                         `MOLE found ${data.summary.total_tunnels} tunnel(s) & ${data.summary.total_pores} pore(s)`
                       );
                     }}
+                    onUpdateHole={(data, show3D) => {
+                      setHoleData(data);
+                      setShowHole3D(show3D);
+                      pushToast(
+                        `HOLE pore: Min radius ${data.summary.min_radius_A} Å · Length ${data.summary.length_A} Å · ${data.summary.conductance_pS} pS`
+                      );
+                    }}
+                    onToggleHole3D={() => setShowHole3D((v) => !v)}
                     onToggleVisible={(id) =>
                       setVisibleMoleIds((prev) =>
                         prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
@@ -494,6 +509,7 @@ export function App() {
                       : []
                   }
                   moleColorBy={moleColorBy}
+                  holeData={showHole3D ? holeData : null}
                   diffOverlayPdb={diffOverlayPdb}
                   membraneOverlay={membraneOverlay}
                   expanded={viewerExpanded}

@@ -171,3 +171,15 @@ class MoleAnalyzeRequest(BaseModel):
 
 class MoleExportRequest(MoleAnalyzeRequest):
     format: str = Field(default="csv", pattern="^(csv|residues_csv|json|pdb)$")
+
+
+class HoleAnalyzeRequest(BaseModel):
+    axis_mode: str = Field(default="auto", pattern="^(auto|z|y|x)$")
+    step: float = Field(default=0.5, ge=0.25, le=2.0)
+    end_radius: float = Field(default=10.0, ge=4.5, le=18.0)
+    custom_point: Optional[List[float]] = None
+    include_hetatms: bool = False
+
+
+class HoleExportRequest(HoleAnalyzeRequest):
+    format: str = Field(default="csv", pattern="^(csv|pdb|json)$")
