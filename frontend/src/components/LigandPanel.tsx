@@ -45,6 +45,17 @@ export const LigandPanel: React.FC<LigandPanelProps> = ({
     URL.revokeObjectURL(url);
   };
 
+  const handleExportLigand = async (ligId: string, fmt: 'pdbqt' | 'mol2' | 'sdf' | 'pdb') => {
+    onSetBusy(`Preparing ${ligId} as ${fmt.toUpperCase()} (pH ${session.propka.ph})…`);
+    try {
+      await api.exportLigand(session.session_id, ligId, fmt, session.propka.ph);
+    } catch (e: any) {
+      onError(e?.message || `Ligand ${fmt.toUpperCase()} export failed`);
+    } finally {
+      onSetBusy(null);
+    }
+  };
+
   return (
     <div className="space-y-4 pb-6">
       <div className="apple-card p-4">
@@ -135,6 +146,48 @@ export const LigandPanel: React.FC<LigandPanelProps> = ({
                     <div className="text-[13px] font-semibold font-mono mt-0.5">{v}</div>
                   </div>
                 ))}
+              </div>
+            </div>
+
+            {/* 1-Click Docking & MD Ligand Preparation Exports */}
+            <div className="p-3 rounded-2xl bg-black/[0.025] dark:bg-white/[0.035] border border-black/[0.05] dark:border-white/[0.06] flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div className="text-[11.5px] font-semibold">Docking &amp; MD Ligand Prep (pH {session.propka.ph})</div>
+                <div className="text-[10.5px] text-[#86868B]">
+                  3D protonated ligand with Gasteiger charges, Sybyl types &amp; AutoDock torsion tree
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <button
+                  disabled={busy}
+                  onClick={() => handleExportLigand(lig.id, 'pdbqt')}
+                  className="apple-btn-primary !py-1 !px-2.5 text-[11.5px]"
+                  title="AutoDock Vina / GNINA ligand .pdbqt with ROOT/BRANCH torsion tree"
+                >
+                  <Download className="w-3 h-3" /> .PDBQT (Vina)
+                </button>
+                <button
+                  disabled={busy}
+                  onClick={() => handleExportLigand(lig.id, 'mol2')}
+                  className="apple-btn-secondary !py-1 !px-2.5 text-[11.5px]"
+                  title="Tripos .mol2 with Sybyl atom types & Gasteiger charges (CGenFF / ACPYPE / AnteChamber)"
+                >
+                  <Download className="w-3 h-3" /> .MOL2 (MD)
+                </button>
+                <button
+                  disabled={busy}
+                  onClick={() => handleExportLigand(lig.id, 'sdf')}
+                  className="apple-btn-secondary !py-1 !px-2 text-[11.5px]"
+                >
+                  .SDF
+                </button>
+                <button
+                  disabled={busy}
+                  onClick={() => handleExportLigand(lig.id, 'pdb')}
+                  className="apple-btn-secondary !py-1 !px-2 text-[11.5px]"
+                >
+                  .PDB
+                </button>
               </div>
             </div>
 

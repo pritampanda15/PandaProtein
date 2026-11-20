@@ -7,6 +7,9 @@ export type NavTab =
   | 'validation'
   | 'clashes'
   | 'ligands'
+  | 'tunnels'
+  | 'analysis'
+  | 'batch'
   | 'export';
 
 export interface SelectedResidue {
@@ -523,4 +526,214 @@ export interface RotamerExplorerData {
     status: string;
   } | null;
   rotamers: RotamerOption[];
+}
+
+export type MoleColorBy = 'id' | 'hydropathy' | 'polarity' | 'charge';
+
+export interface MoleProfilePoint {
+  distance: number;
+  x: number;
+  y: number;
+  z: number;
+  radius: number;
+  hydropathy: number;
+  polarity: number;
+  charge: number;
+  mutability: number;
+}
+
+export interface MoleLiningResidue {
+  chain: string;
+  resseq: number;
+  icode: string;
+  resname: string;
+  std_resname: string;
+  key: string;
+  min_dist_A: number;
+  start_dist: number;
+  end_dist: number;
+  backbone_contact: boolean;
+  hydropathy: number;
+  charge: number;
+  is_bottleneck: boolean;
+}
+
+export interface MoleChannel {
+  id: string;
+  kind: 'tunnel' | 'pore';
+  name: string;
+  origin_label: string;
+  color: string;
+  length_A: number;
+  bottleneck_radius_A: number;
+  bottleneck_distance_A: number;
+  bottleneck_point: [number, number, number];
+  bottleneck_residues: string[];
+  max_radius_A: number;
+  tortuosity: number;
+  throughput: number;
+  properties: {
+    hydropathy: number;
+    polarity: number;
+    mutability: number;
+    net_charge: number;
+    positive_residues: number;
+    negative_residues: number;
+    character: string;
+  };
+  profile: MoleProfilePoint[];
+  lining_residues: MoleLiningResidue[];
+}
+
+export interface MoleAnalysisData {
+  tunnels: MoleChannel[];
+  pores: MoleChannel[];
+  origins: Array<{ label: string; point: [number, number, number] }>;
+  params: {
+    mode: 'tunnels' | 'pores' | 'both';
+    bottleneck_radius: number;
+    probe_radius: number;
+    min_length: number;
+    max_tunnels?: number;
+    start_mode?: string;
+    include_hetatms?: boolean;
+  };
+  summary: {
+    total_tunnels: number;
+    total_pores: number;
+    voronoi_nodes: number;
+    widest_bottleneck_A?: number;
+  };
+}
+
+export interface MoleMutationCandidate {
+  chain: string;
+  resseq: number;
+  icode: string;
+  key: string;
+  wt_resname: string;
+  mut_resname: string;
+  mutation: string;
+  baseline_bottleneck_A: number;
+  new_bottleneck_A: number;
+  delta_bottleneck_A: number;
+  effect: string;
+}
+
+export interface MoleMutationScanResult {
+  target_aa: string;
+  baseline_bottleneck_A: number;
+  candidates: MoleMutationCandidate[];
+}
+
+export interface StructuralDiffData {
+  ref_label: string;
+  matched_ca: number;
+  matched_heavy: number;
+  ca_rmsd_A: number;
+  backbone_rmsd_A: number;
+  all_heavy_rmsd_A: number;
+  max_shift_A: number;
+  top_shifted: Array<{
+    chain: string;
+    resseq: number;
+    resname: string;
+    key: string;
+    ca_shift_A: number;
+    max_atom_shift_A: number;
+    mean_heavy_shift_A: number;
+  }>;
+  per_residue: Array<{
+    chain: string;
+    resseq: number;
+    resname: string;
+    key: string;
+    ca_shift_A: number;
+    max_atom_shift_A: number;
+    mean_heavy_shift_A: number;
+  }>;
+  aligned_ref_pdb: string;
+}
+
+export interface MembraneInfo {
+  normal: [number, number, number];
+  center: [number, number, number];
+  top_leaflet_center: [number, number, number];
+  bottom_leaflet_center: [number, number, number];
+  thickness_A: number;
+  disc_radius_A: number;
+  tilt_from_z_deg: number;
+  belt_hydrophobic_pct: number;
+  flank_hydrophobic_pct: number;
+  classification: string;
+}
+
+export interface InteractionsMembraneData {
+  salt_bridges: Array<{
+    acid: string;
+    acid_chain: string;
+    acid_resseq: number;
+    acid_atom: string;
+    base: string;
+    base_chain: string;
+    base_resseq: number;
+    base_atom: string;
+    distance_A: number;
+    inter_chain: boolean;
+  }>;
+  pi_stacking: Array<{
+    res1: string;
+    chain1: string;
+    resseq1: number;
+    res2: string;
+    chain2: string;
+    resseq2: number;
+    distance_A: number;
+    angle_deg: number;
+    geometry: string;
+    inter_chain: boolean;
+  }>;
+  interface_contacts: Array<{
+    res1: string;
+    chain1: string;
+    resseq1: number;
+    res2: string;
+    chain2: string;
+    resseq2: number;
+    distance_A: number;
+  }>;
+  counts: {
+    salt_bridges: number;
+    inter_chain_salt_bridges: number;
+    pi_stacking: number;
+    interface_contacts: number;
+  };
+  membrane: MembraneInfo | null;
+}
+
+export interface BatchPrepResult {
+  batch_id: string;
+  total: number;
+  succeeded: number;
+  failed: number;
+  preset: string;
+  ph: number;
+  zip_size_bytes: number;
+  rows: Array<{
+    filename: string;
+    status: 'ok' | 'error';
+    residues?: number;
+    before_readiness?: number;
+    after_readiness?: number;
+    before_clashscore?: number;
+    after_clashscore?: number;
+    before_issues?: number;
+    after_issues?: number;
+    hydrogens_added?: number;
+    net_charge?: number;
+    pI?: number;
+    mole_channels?: number;
+    widest_bottleneck_A?: number;
+    error?: string | null;
+  }>;
 }

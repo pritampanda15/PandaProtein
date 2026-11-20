@@ -50,19 +50,32 @@
 
 ### 5. RDKit Ligands, Metals & 3D Druggable Binding Pocket Finder
 - RDKit 2D vector SVG depictions, SMILES, Lipinski Rule-of-5 properties (MW, cLogP, TPSA, HBD/HBA, rotatable bonds), and **ETKDGv3 + MMFF94** 3D conformer generation (`.sdf`).
+- **Complete Docking & MD Ligand Preparation**: 1-click export of every co-crystallized ligand as **AutoDock Vina/GNINA `.pdbqt`** (with `ROOT`/`BRANCH`/`TORSDOF` rotatable torsion tree & Gasteiger charges), **Tripos `.mol2`** (Sybyl atom types + Gasteiger charges for CGenFF/ACPYPE/AnteChamber), `.sdf`, or `.pdb` protonated at the active PROPKA pH.
 - 3D binding pocket contact mapping (H-bonds, hydrophobic contacts, metal coordination spheres).
 - Built-in **3D Druggable Cavity Detector** (volume in $\text{Å}^3$, druggability score, hydrophobic %, lining residues, translucent 3D pocket cloud overlay, and automatic AutoDock Vina grid boxes for apo proteins).
 
-### 6. Multi-Target Export Studio & Live GROMACS Verification
+### 6. MOLE 2.5 Tunnels, Transmembrane Pores & Bottleneck Engineering
+- **3D Voronoi / Delaunay Void-Space Engine**: Automatically discovers substrate access **Tunnels** (from active-site ligands, cavities, custom catalytic residues, or 3D coordinates to the molecular surface) and **Trans-Protein Pores** spanning opposite faces.
+- **Interactive Radius & Hydropathy Profile**: Live SVG chart plotting radius (Å) vs. tunnel distance with a Kyte–Doolittle hydropathy ribbon, Zimmerman polarity, mutability, net charge, tortuosity, throughput, and highlighted narrowest bottleneck sphere in 3D.
+- **Automated Bottleneck Mutation Scanner**: In-silico `→ ALA / GLY / VAL` mutation scan at bottleneck-forming residues ranking candidates by predicted tunnel widening ($\Delta r$ in Å), with **1-click Apply Mutation** (mutates via COOT and immediately recomputes the widened tunnel).
+- **Rich Scientific Exports**: **Profile CSV** (includes per-slice residues, bottleneck residues, and full lining residues), **Residues CSV** (residue-by-residue table), **PyMOL/ChimeraX pseudo-atom PDB** (radii stored in B-factor), and **JSON**.
+
+### 7. Structural Superposition, Membrane Orientation & Non-Covalent Networks
+- **Before vs. After & Reference Superposition**: Exact **Kabsch SVD** $C_\alpha$ alignment comparing the prepared structure against either the original pre-prep input or any uploaded second PDB/mmCIF/GRO reference — reporting $C_\alpha$, backbone, and all-heavy RMSD, per-residue displacement chart, and a **3D translucent ghost overlay**.
+- **OPM-Style Transmembrane Bilayer Orientation (+Z Aligner)**: Estimates the 30 Å hydrophobic transmembrane belt normal, renders translucent 3D outer/inner bilayer discs, and aligns the channel/membrane axis onto **+Z** centered at `(0, 0, 0)` in one click for GROMACS/CHARMM-GUI membrane simulations.
+- **Non-Covalent Interaction Networks**: Automated detection of **Salt Bridges** (intra- & inter-chain), **Aromatic $\pi\text{–}\pi$ Stacking** (parallel-displaced & T-shaped), and **Inter-Chain Interface Contacts**.
+
+### 8. Multi-Target Export Studio, Live GROMACS Verification & Batch Prep Queue
 - Supports **PDB** (`.pdb`), **mmCIF** (`.cif`), **GROMACS `.gro`** (both **import & export** with nm conversion and box vectors), **RCSB PDB ID fetch**, and **AlphaFold DB UniProt fetch** — ships with **SARS-CoV-2 $\text{M}^\text{pro}$ (`6LU7`)** bundled locally as the instant default structure.
 - **Force-Field-Aware GROMACS Pipeline**:
   - **CHARMM36m (`charmm36-jul2022` · Recommended)** with automatic `HID/HIE/HIP → HSD/HSE/HSP` nomenclature mapping and official CHARMM MDP nonbonded physics (`vdw-modifier = force-switch`, `rvdw-switch = 1.0`, `rvdw = 1.2`, `rcoulomb = 1.2`, `DispCorr = no`).
   - Also supports **AMBER99SB-ILDN**, **CHARMM27**, **OPLS-AA/L**, **GROMOS96 54a7**, and **AMBER03**.
   - **Live `gmx pdb2gmx` Pre-Flight Test** right from the browser + **Periodic Box, Solvation & Ion Calculator** (box volume, TIP3P waters, $\text{Na}^+/\text{Cl}^-$ counter-ions, total MD atom count).
 - **Molecular Docking Export**: AutoDock Vina / GNINA receptor **`.pdbqt`** (polar H, partial charges, AD4 atom types) + auto-computed **`vina_config.txt`** with 3D wireframe Grid Box overlay, APBS **`.pqr`**, complete **GROMACS Production `.zip` Bundle**, and publication-grade Markdown/JSON reports.
+- **Batch Multi-Structure Preparation Queue**: Drag-and-drop multiple `.pdb`/`.cif`/`.gro` files to run automated PDBFixer + COOT + PROPKA (+ optional MOLE) across an entire library, view Before → After readiness & clash audits, and download a unified **Batch ZIP** containing every prepared `.pdb`, `.gro`, `.pdbqt`, `vina_config.txt`, and `batch_summary.csv`.
 
-### 7. Apple-Crafted 3D Workbench UX
-- Persistent **3Dmol.js** WebGL viewport (`keepH: true`) with Cartoon, Sticks, Ball & Stick, and Surface modes, QA Issues Heatmap, B-factor/pLDDT coloring, 3D Disulfide/Metal/H-Bond cylinders (`S–S/HB`), 3D Clash spheres, Pocket clouds, and PNG snapshot export.
+### 9. Apple-Crafted 3D Workbench UX
+- Persistent **3Dmol.js** WebGL viewport (`keepH: true`) with Cartoon, Sticks, Ball & Stick, and Surface modes, QA Issues Heatmap, B-factor/pLDDT coloring, 3D Disulfide/Metal/H-Bond cylinders (`S–S/HB`), 3D Clash spheres, Pocket clouds, MOLE Tunnel tubes, Ghost Superposition, Bilayer discs, **2-Click 3D Distance Ruler (Å)**, collapsible **3D Overlay Legend**, and PNG snapshot export.
 - Interactive **1-Letter Sequence Ribbon Strip** docked above the 3D viewport.
 - **Apple Spotlight Command Palette (`⌘K`)** to jump straight to any residue (`HIS 18`, `A:41`), chain, ligand, or action; **`⌘Z` / `⌘⇧Z`** Undo/Redo; **Light & Dark Mode**; and disk-persisted sessions.
 
@@ -125,8 +138,11 @@ PandaProtein/
 │       ├── coot_engine.py           # COOT validation, model-building, & monotonic Auto-Refine
 │       ├── pdbfixer_engine.py       # Deep PDBFixer diagnostics & structural repair pipeline
 │       ├── propka_engine.py         # PROPKA 3.5.1 titration, protonation & H-bond optimization
-│       ├── ligand_engine.py         # RDKit 2D depictions, Ro5, pocket contacts & ETKDGv3 conformers
+│       ├── ligand_engine.py         # RDKit 2D depictions, Ro5, contacts, conformers & .pdbqt/.mol2 prep
 │       ├── pocket_engine.py         # 3D concave druggable binding pocket detector
+│       ├── mole_engine.py           # MOLE 2.5 Voronoi tunnels/pores, CSV/PyMOL export & mutation scanner
+│       ├── analysis_engine.py       # Kabsch SVD RMSD superposition, bilayer +Z align, salt bridges & π–π
+│       ├── batch_engine.py          # Multi-structure batch preparation pipeline & unified ZIP bundler
 │       ├── rename_engine.py         # File, chain swap/delete/merge, residue & ligand renaming
 │       └── export_engine.py         # CHARMM36m/AMBER GROMACS bundle, live gmx test, PDBQT, PQR
 ├── frontend/
@@ -138,7 +154,7 @@ PandaProtein/
 │           ├── TopBar.tsx           # Translucent macOS toolbar + Readiness indicator
 │           ├── SidebarNav.tsx       # Studio navigation & live structure telemetry
 │           ├── SequenceStrip.tsx    # Interactive 1-letter amino acid ribbon bar
-│           ├── Viewer3D.tsx         # 3Dmol.js WebGL viewport (keepH, spotlight, pockets, S-S/HB)
+│           ├── Viewer3D.tsx         # 3Dmol.js WebGL viewport (Ruler, Legend, Ghost, Bilayer, MOLE)
 │           ├── OverviewPanel.tsx    # Activity readiness rings & Before → After progress diff
 │           ├── CootWorkbench.tsx    # Interactive COOT residue editor & rotamer explorer
 │           ├── RenameChainsPanel.tsx# PDB file, chain spotlight/swap/delete & ligand renamer
@@ -146,7 +162,10 @@ PandaProtein/
 │           ├── PropkaPanel.tsx      # Interactive pH slider, SVG titration curve & overrides
 │           ├── ValidationPanel.tsx  # Interactive SVG Ramachandran plot & Engh-Huber charts
 │           ├── ClashesPanel.tsx     # MolProbity clashscore, rotamer outliers & NQH flips
-│           ├── LigandPanel.tsx      # RDKit 2D SVG, contacts, metals, pockets & conformers
+│           ├── LigandPanel.tsx      # RDKit 2D SVG, contacts, metals, pockets & .pdbqt/.mol2 prep
+│           ├── MolePanel.tsx        # MOLE tunnels/pores profile chart & bottleneck mutation scanner
+│           ├── AnalysisPanel.tsx    # Kabsch RMSD diff, bilayer +Z align & salt-bridge/π–π networks
+│           ├── BatchPanel.tsx       # Multi-structure batch preparation queue & unified ZIP export
 │           ├── ExportPanel.tsx      # CHARMM36m/AMBER GROMACS test, solvation calc & downloads
 │           ├── CommandPalette.tsx   # Apple Spotlight ⌘K quick jump & action launcher
 │           └── ImportModal.tsx      # Upload (.pdb/.cif/.gro), RCSB PDB & AlphaFold DB fetch

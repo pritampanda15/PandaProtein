@@ -155,3 +155,19 @@ class NormalizeFieldsRequest(BaseModel):
     reset_occupancy: bool = False
     reset_bfactor: Optional[float] = None
     strip_waters_to_chain: Optional[str] = None
+
+
+class MoleAnalyzeRequest(BaseModel):
+    mode: str = Field(default="both", pattern="^(tunnels|pores|both)$")
+    bottleneck_radius: float = Field(default=0.9, ge=0.4, le=3.5)
+    probe_radius: float = Field(default=4.2, ge=2.0, le=8.0)
+    min_length: float = Field(default=5.0, ge=2.0, le=30.0)
+    max_tunnels: int = Field(default=6, ge=1, le=12)
+    start_mode: str = Field(default="auto", pattern="^(auto|ligand|pocket|residues|coordinates)$")
+    start_residues: Optional[List[str]] = None
+    start_point: Optional[List[float]] = None
+    include_hetatms: bool = False
+
+
+class MoleExportRequest(MoleAnalyzeRequest):
+    format: str = Field(default="csv", pattern="^(csv|residues_csv|json|pdb)$")

@@ -14,13 +14,19 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 
+from .engines.analysis_engine import (
+    analyze_membrane_and_interactions,
+    compute_structural_diff,
+    orient_structure_along_z,
+)
+from .engines.batch_engine import get_batch_zip, run_batch_preparation
 from .engines.coot_engine import (
     apply_rotamer,
     auto_fix_coot,
@@ -44,7 +50,14 @@ from .engines.export_engine import (
     generate_vina_config,
     run_gromacs_preflight_test,
 )
-from .engines.ligand_engine import generate_ligand_conformers_sdf
+from .engines.ligand_engine import export_ligand_format, generate_ligand_conformers_sdf
+from .engines.mole_engine import (
+    analyze_tunnels_and_pores,
+    export_mole_csv,
+    export_mole_pdb,
+    export_mole_residues_csv,
+    scan_bottleneck_mutations,
+)
 from .engines.pdbfixer_engine import run_pdbfixer
 from .engines.propka_engine import analyze_propka, apply_protonation
 from .engines.rename_engine import (
@@ -78,6 +91,8 @@ from .models import (
     FetchRCSBRequest,
     LoadSampleRequest,
     MergeChainsRequest,
+    MoleAnalyzeRequest,
+    MoleExportRequest,
     MutateRequest,
     NormalizeFieldsRequest,
     PdbFixerOptions,
@@ -237,6 +252,8 @@ def run_deep_prep_preset(sid: str, req: DeepPrepPresetRequest) -> Dict[str, Any]
         sess.ph = req.ph
         p_res = apply_protonation(sess.structure, PropkaOptions(ph=req.ph).model_dump())
         actions.extend(p_res["actions"])
+        c_post = auto_fix_coot(sess.structure)
+        actions.extend(c_post["actions"])
 
     elif req.preset == "docking_receptor":
         fixer_opts = PdbFixerOptions(
@@ -258,6 +275,8 @@ def run_deep_prep_preset(sid: str, req: DeepPrepPresetRequest) -> Dict[str, Any]
         sess.ph = req.ph
         p_res = apply_protonation(sess.structure, PropkaOptions(ph=req.ph).model_dump())
         actions.extend(p_res["actions"])
+        c_post = auto_fix_coot(sess.structure)
+        actions.extend(c_post["actions"])
 
     else:  # crystallographic_polish
         c_res = auto_fix_coot(sess.structure)
@@ -671,6 +690,192 @@ def ligand_conformers(sid: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         return {"ligand_id": lig_id, "conformers": summary, "sdf": sdf}
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/api/sessions/{sid}/ligands/export")
+def ligand_export_endpoint(sid: str, payload: Dict[str, Any]) -> Response:
+    """Export a prepared ligand as .pdbqt (Vina/GNINA), .mol2 (CGenFF/ACPYPE), .sdf, or .pdb."""
+    sess = _get_session(sid)
+    lig_id = str(payload.get("ligand_id", ""))
+    fmt = str(payload.get("format", "pdbqt")).lower()
+    ph = float(payload.get("ph", sess.ph))
+    if fmt not in ("pdbqt", "mol2", "sdf", "pdb"):
+        raise HTTPException(status_code=400, detail=f"Unsupported ligand format '{fmt}'")
+    try:
+        text, filename = export_ligand_format(sess.structure, lig_id, fmt=fmt, ph=ph)
+        return PlainTextResponse(
+            text,
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+# ---------------------------------------------------------------------------
+# MOLE-Style Tunnels, Channels & Pores Analysis + Bottleneck Mutation Scanner
+# ---------------------------------------------------------------------------
+
+@app.post("/api/sessions/{sid}/mole/scan-mutations")
+def mole_scan_mutations_endpoint(sid: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+    sess = _get_session(sid)
+    bn_res = payload.get("bottleneck_residues") or []
+    bn_pt = payload.get("bottleneck_point") or [0.0, 0.0, 0.0]
+    base_r = float(payload.get("baseline_bottleneck_A", 1.0))
+    target_aa = str(payload.get("target_aa", "ALA"))
+    include_het = bool(payload.get("include_hetatms", False))
+    try:
+        return scan_bottleneck_mutations(
+            sess.structure,
+            bottleneck_residues=bn_res,
+            bottleneck_point=bn_pt,
+            baseline_bottleneck_A=base_r,
+            target_aa=target_aa,
+            include_hetatms=include_het,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+@app.post("/api/sessions/{sid}/mole/analyze")
+def mole_analyze_endpoint(sid: str, req: MoleAnalyzeRequest) -> Dict[str, Any]:
+    sess = _get_session(sid)
+    try:
+        res = analyze_tunnels_and_pores(
+            sess.structure,
+            mode=req.mode,
+            bottleneck_radius=req.bottleneck_radius,
+            probe_radius=req.probe_radius,
+            min_length=req.min_length,
+            max_tunnels=req.max_tunnels,
+            start_mode=req.start_mode,
+            start_residues=req.start_residues,
+            start_point=req.start_point,
+            include_hetatms=req.include_hetatms,
+        )
+        return res
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"MOLE tunnel analysis failed: {exc}")
+
+
+@app.post("/api/sessions/{sid}/mole/export")
+def mole_export_endpoint(sid: str, req: MoleExportRequest) -> Response:
+    sess = _get_session(sid)
+    stem = Path(sess.name).stem
+    data = analyze_tunnels_and_pores(
+        sess.structure,
+        mode=req.mode,
+        bottleneck_radius=req.bottleneck_radius,
+        probe_radius=req.probe_radius,
+        min_length=req.min_length,
+        max_tunnels=req.max_tunnels,
+        start_mode=req.start_mode,
+        start_residues=req.start_residues,
+        start_point=req.start_point,
+        include_hetatms=req.include_hetatms,
+    )
+    if req.format == "csv":
+        return PlainTextResponse(
+            export_mole_csv(data),
+            media_type="text/csv",
+            headers={"Content-Disposition": f'attachment; filename="{stem}_mole_tunnels.csv"'},
+        )
+    if req.format == "residues_csv":
+        return PlainTextResponse(
+            export_mole_residues_csv(data),
+            media_type="text/csv",
+            headers={"Content-Disposition": f'attachment; filename="{stem}_mole_residues.csv"'},
+        )
+    if req.format == "pdb":
+        return PlainTextResponse(
+            export_mole_pdb(data),
+            headers={"Content-Disposition": f'attachment; filename="{stem}_mole_tunnels.pdb"'},
+        )
+    return Response(
+        content=json.dumps(data, indent=2),
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{stem}_mole_tunnels.json"'},
+    )
+
+
+# ---------------------------------------------------------------------------
+# Structural Superposition (Before vs After RMSD), Interactions & Membrane Z-Align
+# ---------------------------------------------------------------------------
+
+@app.get("/api/sessions/{sid}/analysis/diff")
+def analysis_before_after_diff(sid: str) -> Dict[str, Any]:
+    sess = _get_session(sid)
+    orig_pdb = sess.original_pdb or structure_to_pdb(sess.structure)
+    try:
+        st_orig = parse_structure_text(orig_pdb, sess.name)
+        return compute_structural_diff(st_orig, sess.structure, ref_label=f"Original ({sess.name})")
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/api/sessions/{sid}/analysis/align-upload")
+async def analysis_align_upload(sid: str, file: UploadFile = File(...)) -> Dict[str, Any]:
+    sess = _get_session(sid)
+    try:
+        raw = await file.read()
+        text = raw.decode("utf-8", errors="replace")
+        fname = file.filename or "reference.pdb"
+        st_ref = parse_structure_text(text, fname)
+        return compute_structural_diff(st_ref, sess.structure, ref_label=fname)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Alignment failed: {exc}")
+
+
+@app.get("/api/sessions/{sid}/analysis/interactions")
+def analysis_interactions_endpoint(sid: str) -> Dict[str, Any]:
+    sess = _get_session(sid)
+    return analyze_membrane_and_interactions(sess.structure)
+
+
+@app.post("/api/sessions/{sid}/analysis/orient-z")
+def analysis_orient_z_endpoint(sid: str, payload: Dict[str, Any] = None) -> Dict[str, Any]:
+    sess = _get_session(sid)
+    sess.push_undo("Orient Membrane / Pore Axis along +Z")
+    custom_axis = (payload or {}).get("axis")
+    try:
+        res = orient_structure_along_z(sess.structure, custom_axis=custom_axis)
+    except Exception as exc:
+        sess.undo_stack.pop()
+        raise HTTPException(status_code=400, detail=str(exc))
+    sess.invalidate_cache()
+    sess.record_history(res["message"])
+    return {"result": res, "state": sess.get_full_state()}
+
+
+# ---------------------------------------------------------------------------
+# Batch Multi-Structure Preparation Queue
+# ---------------------------------------------------------------------------
+
+@app.post("/api/batch/run")
+async def batch_run_endpoint(
+    files: List[UploadFile] = File(...),
+    preset: str = Form("md_production"),
+    ph: float = Form(7.4),
+    include_mole: bool = Form(False),
+) -> Dict[str, Any]:
+    if not files:
+        raise HTTPException(status_code=400, detail="Upload at least one .pdb, .cif, or .gro file")
+    loaded = []
+    for f in files[:30]:
+        raw = await f.read()
+        loaded.append((f.filename or "structure.pdb", raw.decode("utf-8", errors="replace")))
+    return run_batch_preparation(loaded, preset=preset, ph=ph, include_mole=include_mole)
+
+
+@app.get("/api/batch/{batch_id}/download")
+def batch_download_endpoint(batch_id: str) -> Response:
+    try:
+        zbytes, fname = get_batch_zip(batch_id)
+        return Response(
+            content=zbytes,
+            media_type="application/zip",
+            headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
 
 
 # ---------------------------------------------------------------------------

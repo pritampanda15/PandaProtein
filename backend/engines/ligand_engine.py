@@ -10,6 +10,10 @@ Ligand, Cofactor & Metal Site Analysis Engine powered by RDKit + Gemmi:
 
 from __future__ import annotations
 
+import os
+import shutil
+import subprocess
+import tempfile
 from typing import Any, Dict, List, Optional, Tuple
 
 import gemmi
@@ -338,3 +342,64 @@ def generate_ligand_conformers_sdf(st: gemmi.Structure, ligand_id: str, num_conf
         })
 
     return "".join(sdf_blocks), summary
+
+
+def export_ligand_format(
+    st: gemmi.Structure,
+    ligand_id: str,
+    fmt: str = "pdbqt",
+    ph: float = 7.4,
+) -> Tuple[str, str]:
+    """
+    Export a prepared ligand in docking- or MD-parameterization-ready formats:
+      - pdbqt: AutoDock Vina / GNINA ligand with pH hydrogens, Gasteiger charges & rotatable torsion tree (via OpenBabel)
+      - mol2:  Tripos MOL2 with Sybyl atom types & Gasteiger charges (ready for CGenFF / CHARMM36m / ACPYPE)
+      - sdf:   3D SDF with pH hydrogens
+      - pdb:   Clean extracted ligand PDB
+    Returns (content_text, filename).
+    """
+    if len(st) == 0:
+        raise ValueError("Empty structure")
+
+    target_res = None
+    target_chain = ""
+    for chain in st[0]:
+        for res in chain:
+            lid = f"{chain.name}:{res.name.strip().upper()}:{res.seqid.num}{res.seqid.icode.strip()}"
+            if lid == ligand_id:
+                target_res = res
+                target_chain = chain.name
+                break
+    if target_res is None:
+        raise ValueError(f"Ligand '{ligand_id}' not found")
+
+    rname = target_res.name.strip().upper()
+    stem = f"{rname}_{target_chain}{target_res.seqid.num}"
+    pdb_block = _residue_to_pdb_block(target_chain, target_res)
+
+    if fmt == "pdb":
+        return pdb_block, f"{stem}.pdb"
+
+    obabel = shutil.which("obabel") or ("/opt/homebrew/bin/obabel" if os.path.exists("/opt/homebrew/bin/obabel") else None)
+
+    if obabel and fmt in ("pdbqt", "mol2", "sdf"):
+        with tempfile.TemporaryDirectory() as td:
+            in_pdb = os.path.join(td, f"{stem}.pdb")
+            out_path = os.path.join(td, f"{stem}.{fmt}")
+            with open(in_pdb, "w") as f:
+                f.write(pdb_block)
+            cmd = [obabel, "-ipdb", in_pdb, f"-o{fmt}", "-O", out_path, "-p", f"{ph:.1f}", "--partialcharge", "gasteiger"]
+            proc = subprocess.run(cmd, cwd=td, capture_output=True, text=True, timeout=20)
+            if proc.returncode == 0 and os.path.exists(out_path):
+                text = open(out_path, "r", encoding="utf-8", errors="replace").read()
+                if len(text.strip()) > 30:
+                    return text, f"{stem}.{fmt}"
+
+    # Pure RDKit fallback for SDF if OpenBabel unavailable
+    if fmt == "sdf" and HAS_RDKIT:
+        mol = Chem.MolFromPDBBlock(pdb_block, sanitize=True, removeHs=False)
+        if mol is not None:
+            mol_h = Chem.AddHs(mol, addCoords=True)
+            return Chem.MolToMolBlock(mol_h) + "\n$$$$\n", f"{stem}.sdf"
+
+    raise RuntimeError(f"Could not convert ligand '{ligand_id}' to .{fmt} (OpenBabel available: {bool(obabel)})")

@@ -1,12 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 import { api } from './api/client';
+import { AnalysisPanel } from './components/AnalysisPanel';
+import { BatchPanel } from './components/BatchPanel';
 import { ClashesPanel } from './components/ClashesPanel';
 import { CommandPalette } from './components/CommandPalette';
 import { CootWorkbench } from './components/CootWorkbench';
 import { ExportPanel } from './components/ExportPanel';
 import { ImportModal } from './components/ImportModal';
 import { LigandPanel } from './components/LigandPanel';
+import { MolePanel } from './components/MolePanel';
 import { OverviewPanel } from './components/OverviewPanel';
 import { PdbFixerPanel } from './components/PdbFixerPanel';
 import { PropkaPanel } from './components/PropkaPanel';
@@ -16,7 +19,14 @@ import { SidebarNav } from './components/SidebarNav';
 import { TopBar } from './components/TopBar';
 import { ValidationPanel } from './components/ValidationPanel';
 import { Viewer3D, type ChainHighlight } from './components/Viewer3D';
-import type { NavTab, SelectedResidue, StructureSessionState } from './types/pdbprep';
+import type {
+  MembraneInfo,
+  MoleAnalysisData,
+  MoleColorBy,
+  NavTab,
+  SelectedResidue,
+  StructureSessionState,
+} from './types/pdbprep';
 
 interface Toast {
   id: number;
@@ -32,6 +42,11 @@ export function App() {
   const [focusTrigger, setFocusTrigger] = useState(0);
   const [highlightedChains, setHighlightedChains] = useState<ChainHighlight | null>(null);
   const [chainFocusTrigger, setChainFocusTrigger] = useState(0);
+  const [moleData, setMoleData] = useState<MoleAnalysisData | null>(null);
+  const [visibleMoleIds, setVisibleMoleIds] = useState<string[]>([]);
+  const [moleColorBy, setMoleColorBy] = useState<MoleColorBy>('id');
+  const [diffOverlayPdb, setDiffOverlayPdb] = useState<string | null>(null);
+  const [membraneOverlay, setMembraneOverlay] = useState<MembraneInfo | null>(null);
   const [viewerExpanded, setViewerExpanded] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -110,7 +125,21 @@ export function App() {
 
   const handleStateUpdate = (next: StructureSessionState, message: string) => {
     setSession(next);
+    setMoleData(null);
+    setVisibleMoleIds([]);
+    setDiffOverlayPdb(null);
+    setMembraneOverlay(null);
     pushToast(message, 'success');
+  };
+
+  const resetOverlays = () => {
+    setSelectedResidue(null);
+    setHighlightedChains(null);
+    setMoleData(null);
+    setVisibleMoleIds([]);
+    setDiffOverlayPdb(null);
+    setMembraneOverlay(null);
+    setFocusTrigger(0);
   };
 
   const handleUpload = async (file: File) => {
@@ -118,9 +147,7 @@ export function App() {
     try {
       const st = await api.uploadFile(file);
       setSession(st);
-      setSelectedResidue(null);
-      setHighlightedChains(null);
-      setFocusTrigger(0);
+      resetOverlays();
       setImportOpen(false);
       setActiveTab('overview');
       pushToast(`Loaded ${file.name} (${st.metadata.counts.protein_residues} residues)`);
@@ -136,9 +163,7 @@ export function App() {
     try {
       const st = await api.fetchRCSB(pdbId);
       setSession(st);
-      setSelectedResidue(null);
-      setHighlightedChains(null);
-      setFocusTrigger(0);
+      resetOverlays();
       setImportOpen(false);
       setActiveTab('overview');
       pushToast(`Fetched RCSB ${pdbId} (${st.metadata.counts.protein_residues} residues)`);
@@ -154,9 +179,7 @@ export function App() {
     try {
       const st = await api.fetchAlphaFold(uniprotId);
       setSession(st);
-      setSelectedResidue(null);
-      setHighlightedChains(null);
-      setFocusTrigger(0);
+      resetOverlays();
       setImportOpen(false);
       setActiveTab('overview');
       pushToast(`Fetched AlphaFold ${uniprotId}`);
@@ -172,9 +195,7 @@ export function App() {
     try {
       const st = await api.loadSample('catalytic_showcase');
       setSession(st);
-      setSelectedResidue(null);
-      setHighlightedChains(null);
-      setFocusTrigger(0);
+      resetOverlays();
       setImportOpen(false);
       setActiveTab('overview');
       pushToast('Loaded Metalloenzyme Diagnostic Showcase');
@@ -191,6 +212,10 @@ export function App() {
     try {
       const r = await api.undo(session.session_id);
       setSession(r.state);
+      setMoleData(null);
+      setVisibleMoleIds([]);
+      setDiffOverlayPdb(null);
+      setMembraneOverlay(null);
       pushToast(r.undone ? `Undone: ${r.undone}` : 'Nothing to undo');
     } catch (e: any) {
       pushToast(e?.message || 'Undo failed', 'error');
@@ -205,6 +230,10 @@ export function App() {
     try {
       const r = await api.redo(session.session_id);
       setSession(r.state);
+      setMoleData(null);
+      setVisibleMoleIds([]);
+      setDiffOverlayPdb(null);
+      setMembraneOverlay(null);
       pushToast(r.redone ? `Redone: ${r.redone}` : 'Nothing to redo');
     } catch (e: any) {
       pushToast(e?.message || 'Redo failed', 'error');
@@ -221,6 +250,10 @@ export function App() {
     try {
       const r = await api.deepPrepPreset(session.session_id, preset, session.propka.ph);
       setSession(r.state);
+      setMoleData(null);
+      setVisibleMoleIds([]);
+      setDiffOverlayPdb(null);
+      setMembraneOverlay(null);
       pushToast(`Deep Prep complete — ${r.actions.length} automated repair steps applied`);
     } catch (e: any) {
       pushToast(e?.message || 'Deep Prep failed', 'error');
@@ -245,7 +278,12 @@ export function App() {
       />
 
       <div className="flex-1 flex min-h-0 overflow-hidden">
-        <SidebarNav activeTab={activeTab} onSelect={setActiveTab} session={session} />
+        <SidebarNav
+          activeTab={activeTab}
+          onSelect={setActiveTab}
+          session={session}
+          moleCount={moleData ? moleData.tunnels.length + moleData.pores.length : undefined}
+        />
 
         {/* Main Workspace Split View */}
         {!session ? (
@@ -343,9 +381,76 @@ export function App() {
                     onError={(m) => pushToast(m, 'error')}
                   />
                 )}
+                {activeTab === 'tunnels' && (
+                  <MolePanel
+                    session={session}
+                    busy={!!busy}
+                    moleData={moleData}
+                    visibleIds={visibleMoleIds}
+                    colorBy={moleColorBy}
+                    onUpdateMole={(data, vis) => {
+                      setMoleData(data);
+                      setVisibleMoleIds(vis);
+                      pushToast(
+                        `MOLE found ${data.summary.total_tunnels} tunnel(s) & ${data.summary.total_pores} pore(s)`
+                      );
+                    }}
+                    onToggleVisible={(id) =>
+                      setVisibleMoleIds((prev) =>
+                        prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+                      )
+                    }
+                    onSetAllVisible={(ids) => setVisibleMoleIds(ids)}
+                    onChangeColorBy={setMoleColorBy}
+                    onSelectResidue={handleSelectResidue}
+                    onJumpToCootMutate={(res) => {
+                      handleSelectResidue(res, true);
+                      setActiveTab('coot');
+                    }}
+                    onApplyMutation={async (chain, resseq, icode, targetAA) => {
+                      setBusy(`Mutating ${chain}:${resseq} → ${targetAA} & recomputing tunnels…`);
+                      try {
+                        const r = await api.cootMutate(session.session_id, {
+                          chain,
+                          resseq,
+                          icode,
+                          target_resname: targetAA,
+                        });
+                        handleStateUpdate(r.state, r.result.message || `Mutated ${chain}:${resseq} → ${targetAA}`);
+                      } catch (e: any) {
+                        pushToast(e?.message || 'Mutation failed', 'error');
+                      } finally {
+                        setBusy(null);
+                      }
+                    }}
+                    onSetBusy={setBusy}
+                    onError={(m) => pushToast(m, 'error')}
+                  />
+                )}
+                {activeTab === 'analysis' && (
+                  <AnalysisPanel
+                    session={session}
+                    busy={!!busy}
+                    diffOverlayActive={!!diffOverlayPdb}
+                    membraneOverlayActive={!!membraneOverlay}
+                    onToggleDiffOverlay={setDiffOverlayPdb}
+                    onToggleMembraneOverlay={setMembraneOverlay}
+                    onSelectResidue={handleSelectResidue}
+                    onStateUpdate={handleStateUpdate}
+                    onSetBusy={setBusy}
+                    onError={(m) => pushToast(m, 'error')}
+                  />
+                )}
                 {activeTab === 'export' && (
                   <ExportPanel
                     session={session}
+                    busy={!!busy}
+                    onSetBusy={setBusy}
+                    onError={(m) => pushToast(m, 'error')}
+                  />
+                )}
+                {activeTab === 'batch' && (
+                  <BatchPanel
                     busy={!!busy}
                     onSetBusy={setBusy}
                     onError={(m) => pushToast(m, 'error')}
@@ -381,6 +486,16 @@ export function App() {
                   highlightedChains={highlightedChains}
                   chainFocusTrigger={chainFocusTrigger}
                   onClearChainHighlight={() => handleHighlightChains(null, true)}
+                  moleChannels={
+                    moleData
+                      ? [...moleData.tunnels, ...moleData.pores].filter((c) =>
+                          visibleMoleIds.includes(c.id)
+                        )
+                      : []
+                  }
+                  moleColorBy={moleColorBy}
+                  diffOverlayPdb={diffOverlayPdb}
+                  membraneOverlay={membraneOverlay}
                   expanded={viewerExpanded}
                   onToggleExpand={() => setViewerExpanded((v) => !v)}
                 />

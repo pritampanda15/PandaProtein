@@ -5,16 +5,39 @@ import {
   Camera,
   Eye,
   Flame,
+  HelpCircle,
   Maximize2,
   Minimize2,
   RotateCcw,
+  Ruler,
+  Trash2,
   X,
 } from 'lucide-react';
-import type { SelectedResidue, StructureSessionState } from '../types/pdbprep';
+import type {
+  MembraneInfo,
+  MoleChannel,
+  MoleColorBy,
+  SelectedResidue,
+  StructureSessionState,
+} from '../types/pdbprep';
 
 export interface ChainHighlight {
   ids: string[];
   tone: 'select' | 'delete';
+}
+
+interface DistanceMeasurement {
+  id: number;
+  label1: string;
+  label2: string;
+  p1: [number, number, number];
+  p2: [number, number, number];
+  dist: number;
+}
+
+interface PendingMeasureAtom {
+  label: string;
+  pos: [number, number, number];
 }
 
 interface Viewer3DProps {
@@ -26,6 +49,10 @@ interface Viewer3DProps {
   highlightedChains: ChainHighlight | null;
   chainFocusTrigger: number;
   onClearChainHighlight: () => void;
+  moleChannels?: MoleChannel[];
+  moleColorBy?: MoleColorBy;
+  diffOverlayPdb?: string | null;
+  membraneOverlay?: MembraneInfo | null;
   expanded: boolean;
   onToggleExpand: () => void;
 }
@@ -42,11 +69,16 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({
   highlightedChains,
   chainFocusTrigger,
   onClearChainHighlight,
+  moleChannels = [],
+  moleColorBy = 'id',
+  diffOverlayPdb = null,
+  membraneOverlay = null,
   expanded,
   onToggleExpand,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const viewerRef = useRef<any>(null);
+  const lastZoomSessionRef = useRef<string | null>(null);
 
   const [rep, setRep] = useState<RepStyle>('cartoon');
   const [colorMode, setColorMode] = useState<ColorMode>('chain');
@@ -56,6 +88,21 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({
   const [showDockingBox, setShowDockingBox] = useState(false);
   const [showPockets, setShowPockets] = useState(false);
   const [showInteractions, setShowInteractions] = useState(true);
+  const [showLegend, setShowLegend] = useState(false);
+  const [measureMode, setMeasureMode] = useState(false);
+  const [pendingAtom, setPendingAtom] = useState<PendingMeasureAtom | null>(null);
+  const [measurements, setMeasurements] = useState<DistanceMeasurement[]>([]);
+
+  const measureModeRef = useRef(measureMode);
+  const pendingAtomRef = useRef(pendingAtom);
+  measureModeRef.current = measureMode;
+  pendingAtomRef.current = pendingAtom;
+
+  // Clear distance measurements when switching to a brand-new session
+  useEffect(() => {
+    setMeasurements([]);
+    setPendingAtom(null);
+  }, [session.session_id]);
 
   // Initialize 3Dmol viewer once
   useEffect(() => {
@@ -369,9 +416,204 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({
       }
     }
 
-    // Click handler to pick any residue directly in 3D (COOT click-to-center!)
+    // Render MOLE 3D Tunnels & Pores (overlapping translucent spheres along centerline + bottleneck highlight!)
+    if (moleChannels && moleChannels.length > 0) {
+      const sliceColor = (ch: MoleChannel, pt: { hydropathy: number; polarity: number; charge: number }) => {
+        if (moleColorBy === 'hydropathy') {
+          if (pt.hydropathy >= 1.5) return '#FF9500';
+          if (pt.hydropathy >= 0.4) return '#FFCC00';
+          if (pt.hydropathy <= -1.5) return '#007AFF';
+          if (pt.hydropathy <= -0.4) return '#5AC8FA';
+          return '#A1A1A6';
+        }
+        if (moleColorBy === 'polarity') {
+          if (pt.polarity >= 25) return '#007AFF';
+          if (pt.polarity >= 8) return '#5AC8FA';
+          return '#FF9500';
+        }
+        if (moleColorBy === 'charge') {
+          if (pt.charge > 0) return '#007AFF';
+          if (pt.charge < 0) return '#FF3B30';
+          return '#D1D5DB';
+        }
+        return ch.color;
+      };
+
+      for (const ch of moleChannels) {
+        for (const pt of ch.profile) {
+          viewer.addSphere({
+            center: { x: pt.x, y: pt.y, z: pt.z },
+            radius: Math.max(0.45, Math.min(4.0, pt.radius)),
+            color: sliceColor(ch, pt),
+            opacity: 0.62,
+          });
+        }
+        // Highlight narrowest bottleneck in bright red
+        const [bx, by, bz] = ch.bottleneck_point;
+        viewer.addSphere({
+          center: { x: bx, y: by, z: bz },
+          radius: Math.max(0.55, ch.bottleneck_radius_A + 0.12),
+          color: '#FF3B30',
+          opacity: 0.85,
+        });
+        viewer.addLabel(
+          `${ch.id} (${ch.bottleneck_radius_A} Å)`,
+          {
+            font: '-apple-system, sans-serif',
+            fontSize: 11,
+            fontColor: '#FFFFFF',
+            backgroundColor: ch.kind === 'pore' ? 'rgba(175, 82, 222, 0.90)' : 'rgba(0, 122, 255, 0.90)',
+            borderRadius: 6,
+            inFront: true,
+          },
+          { x: bx, y: by, z: bz }
+        );
+      }
+    }
+
+    // Render Before vs. After / Reference Superposition Ghost Overlay (translucent silver cartoon)
+    if (diffOverlayPdb) {
+      const ghostModel = viewer.addModel(diffOverlayPdb, 'pdb');
+      ghostModel.setStyle(
+        { hetflag: false },
+        { cartoon: { color: darkMode ? '#9CA3AF' : '#64748B', opacity: 0.36, thickness: 0.28 } }
+      );
+      ghostModel.setStyle({ hetflag: true }, {});
+    }
+
+    // Render 3D Membrane Bilayer Leaflet Discs (OPM-style 30 Å Hydrophobic Core)
+    if (membraneOverlay) {
+      const [nx, ny, nz] = membraneOverlay.normal;
+      const [tx, ty, tz] = membraneOverlay.top_leaflet_center;
+      const [bx, by, bz] = membraneOverlay.bottom_leaflet_center;
+      const rDisc = Math.max(12, Math.min(48, membraneOverlay.disc_radius_A || 26));
+      const halfThick = 0.22;
+
+      viewer.addCylinder({
+        start: { x: tx - nx * halfThick, y: ty - ny * halfThick, z: tz - nz * halfThick },
+        end: { x: tx + nx * halfThick, y: ty + ny * halfThick, z: tz + nz * halfThick },
+        radius: rDisc,
+        color: '#FF9500',
+        opacity: 0.22,
+        fromCap: 2,
+        toCap: 2,
+      });
+      viewer.addCylinder({
+        start: { x: bx - nx * halfThick, y: by - ny * halfThick, z: bz - nz * halfThick },
+        end: { x: bx + nx * halfThick, y: by + ny * halfThick, z: bz + nz * halfThick },
+        radius: rDisc,
+        color: '#5AC8FA',
+        opacity: 0.22,
+        fromCap: 2,
+        toCap: 2,
+      });
+      viewer.addLabel(
+        `Outer Bilayer (+${(membraneOverlay.thickness_A / 2).toFixed(0)} Å)`,
+        {
+          font: '-apple-system, sans-serif',
+          fontSize: 11,
+          fontColor: '#FFFFFF',
+          backgroundColor: 'rgba(255, 149, 0, 0.88)',
+          borderRadius: 6,
+          inFront: true,
+        },
+        { x: tx, y: ty, z: tz }
+      );
+      viewer.addLabel(
+        `Inner Bilayer (-${(membraneOverlay.thickness_A / 2).toFixed(0)} Å)`,
+        {
+          font: '-apple-system, sans-serif',
+          fontSize: 11,
+          fontColor: '#FFFFFF',
+          backgroundColor: 'rgba(0, 122, 255, 0.88)',
+          borderRadius: 6,
+          inFront: true,
+        },
+        { x: bx, y: by, z: bz }
+      );
+    }
+
+    // Render 2-Click Distance Ruler Measurements & Pending Anchor
+    if (pendingAtom) {
+      viewer.addSphere({
+        center: { x: pendingAtom.pos[0], y: pendingAtom.pos[1], z: pendingAtom.pos[2] },
+        radius: 0.48,
+        color: '#FFCC00',
+        opacity: 0.9,
+      });
+      viewer.addLabel(
+        `Start: ${pendingAtom.label}`,
+        {
+          font: '-apple-system, sans-serif',
+          fontSize: 11,
+          fontColor: '#1D1D1F',
+          backgroundColor: 'rgba(255, 204, 0, 0.95)',
+          borderRadius: 6,
+          inFront: true,
+        },
+        { x: pendingAtom.pos[0], y: pendingAtom.pos[1], z: pendingAtom.pos[2] }
+      );
+    }
+    for (const m of measurements) {
+      viewer.addCylinder({
+        start: { x: m.p1[0], y: m.p1[1], z: m.p1[2] },
+        end: { x: m.p2[0], y: m.p2[1], z: m.p2[2] },
+        radius: 0.10,
+        dashed: true,
+        color: '#FF9500',
+      });
+      viewer.addSphere({
+        center: { x: m.p1[0], y: m.p1[1], z: m.p1[2] },
+        radius: 0.30,
+        color: '#FF9500',
+        opacity: 0.9,
+      });
+      viewer.addSphere({
+        center: { x: m.p2[0], y: m.p2[1], z: m.p2[2] },
+        radius: 0.30,
+        color: '#FF9500',
+        opacity: 0.9,
+      });
+      viewer.addLabel(
+        `${m.dist.toFixed(2)} Å`,
+        {
+          font: '-apple-system, monospace',
+          fontSize: 12,
+          fontColor: '#FFFFFF',
+          backgroundColor: 'rgba(255, 149, 0, 0.94)',
+          borderRadius: 6,
+          inFront: true,
+        },
+        {
+          x: (m.p1[0] + m.p2[0]) / 2,
+          y: (m.p1[1] + m.p2[1]) / 2,
+          z: (m.p1[2] + m.p2[2]) / 2,
+        }
+      );
+    }
+
+    // Click handler: either 2-Click Distance Ruler OR COOT Residue Selection
     model.setClickable({}, true, (atom: any) => {
       if (!atom) return;
+      if (measureModeRef.current) {
+        const pos: [number, number, number] = [Number(atom.x), Number(atom.y), Number(atom.z)];
+        const label = `${atom.resn} ${atom.chain}:${atom.resi}.${atom.atom}`;
+        const prev = pendingAtomRef.current;
+        if (!prev) {
+          setPendingAtom({ label, pos });
+        } else {
+          const dx = pos[0] - prev.pos[0];
+          const dy = pos[1] - prev.pos[1];
+          const dz = pos[2] - prev.pos[2];
+          const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+          setMeasurements((cur) => [
+            ...cur,
+            { id: Date.now(), label1: prev.label, label2: label, p1: prev.pos, p2: pos, dist },
+          ]);
+          setPendingAtom(null);
+        }
+        return;
+      }
       onSelectResidue({
         chain: atom.chain,
         resseq: atom.resi,
@@ -381,7 +623,8 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({
       });
     });
 
-    if (focusTrigger === 0 && chainFocusTrigger === 0 && !selectedResidue && activeChainIds.length === 0) {
+    if (lastZoomSessionRef.current !== session.session_id) {
+      lastZoomSessionRef.current = session.session_id;
       viewer.zoomTo();
     }
     viewer.render();
@@ -400,6 +643,12 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({
     selectedResidue?.resseq,
     highlightedChains?.tone,
     highlightedChains?.ids?.join(','),
+    moleChannels.map((c) => c.id).join(','),
+    moleColorBy,
+    diffOverlayPdb,
+    membraneOverlay ? `${membraneOverlay.tilt_from_z_deg}_${membraneOverlay.top_leaflet_center.join(',')}` : '',
+    pendingAtom ? pendingAtom.label : '',
+    measurements.length,
     darkMode,
   ]);
 
@@ -553,6 +802,34 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({
           >
             H₂O
           </button>
+          <button
+            onClick={() => {
+              setMeasureMode((v) => {
+                if (v) setPendingAtom(null);
+                return !v;
+              });
+            }}
+            title="2-Click 3D Distance Ruler (click any two atoms to measure Å)"
+            className={`px-2 py-1 rounded-lg text-[11px] font-medium flex items-center gap-1 transition ${
+              measureMode
+                ? 'bg-[#FF9500] text-white shadow-sm'
+                : measurements.length > 0
+                ? 'bg-[#FF9500]/15 text-[#B26200] dark:text-[#FF9F0A]'
+                : 'text-[#86868B]'
+            }`}
+          >
+            <Ruler className="w-3.5 h-3.5" />
+            <span>{measurements.length > 0 ? `Ruler (${measurements.length})` : 'Ruler'}</span>
+          </button>
+          <button
+            onClick={() => setShowLegend((v) => !v)}
+            title="Show 3D Visual Overlay Legend"
+            className={`p-1.5 rounded-lg transition ${
+              showLegend ? 'bg-[#007AFF] text-white' : 'hover:bg-black/5 dark:hover:bg-white/10 text-[#6E6E73] dark:text-[#A1A1A6]'
+            }`}
+          >
+            <HelpCircle className="w-3.5 h-3.5" />
+          </button>
           <div className="w-px h-4 bg-black/10 dark:bg-white/10 mx-0.5" />
           <button onClick={handleReset} title="Reset Camera" className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10">
             <RotateCcw className="w-3.5 h-3.5" />
@@ -566,16 +843,82 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({
         </div>
       </div>
 
+      {/* Collapsible 3D Overlay Legend Popover */}
+      {showLegend && (
+        <div className="absolute top-16 right-3 z-20 w-64 apple-glass rounded-2xl p-3 shadow-apple-lg border border-black/10 dark:border-white/10 space-y-2 text-[11px]">
+          <div className="flex items-center justify-between font-semibold text-[11.5px]">
+            <span>3D Viewport Legend</span>
+            <button onClick={() => setShowLegend(false)} className="p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <div className="space-y-1.5 text-[#1D1D1F] dark:text-[#E5E5EA]">
+            {[
+              ['#FF3B30', 'rounded-full', 'Red/Pink Spheres — Steric Clashes'],
+              ['#FFCC00', 'rounded-sm', 'Gold Rods — Disulfide Bridges (S–S)'],
+              ['#AF52DE', 'rounded-sm', 'Purple Dashes — Metal Coordination'],
+              ['#007AFF', 'rounded-sm', 'Blue Dashes — Ligand H-Bonds'],
+              ['#5AC8FA', 'rounded-full', 'Cyan Spheres — Waters & Pockets'],
+              ['#FF3B30', 'rounded-full ring-2 ring-[#007AFF]', 'Red Tunnel Sphere — MOLE Bottleneck'],
+              ['#9CA3AF', 'rounded-sm', 'Silver Ghost — Reference Superposition'],
+              ['#FF9500', 'rounded-sm', 'Orange/Blue Discs — 30 Å Bilayer'],
+              ['#FF9500', 'rounded-full', 'Amber Dashed Line — Distance Ruler'],
+            ].map(([col, shape, text]) => (
+              <div key={text} className="flex items-center gap-2">
+                <span className={`w-2.5 h-2.5 shrink-0 ${shape}`} style={{ backgroundColor: col }} />
+                <span className="leading-tight">{text}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* 3Dmol WebGL Canvas */}
       <div ref={containerRef} className="w-full h-full min-h-[300px]" />
 
       {/* Bottom Status Pill */}
       <div className="absolute bottom-3 left-3 right-3 z-10 flex items-center justify-between gap-2 pointer-events-none">
         <div className="apple-glass px-3 py-1 rounded-full text-[11px] text-[#6E6E73] dark:text-[#A1A1A6] shadow-apple-sm flex items-center gap-2">
-          <Eye className="w-3 h-3 text-[#007AFF]" />
-          <span>Click any atom in 3D or select a chain to spotlight it</span>
+          {measureMode ? (
+            <>
+              <Ruler className="w-3 h-3 text-[#FF9500]" />
+              <span className="text-[#B26200] dark:text-[#FF9F0A] font-medium">
+                {pendingAtom
+                  ? `Ruler: Click 2nd atom to measure from ${pendingAtom.label}`
+                  : 'Ruler Active: Click any two atoms in 3D to measure distance (Å)'}
+              </span>
+            </>
+          ) : (
+            <>
+              <Eye className="w-3 h-3 text-[#007AFF]" />
+              <span>Click any atom in 3D or select a chain to spotlight it</span>
+            </>
+          )}
         </div>
         <div className="flex items-center gap-1.5 pointer-events-auto">
+          {measurements.length > 0 && (
+            <button
+              onClick={() => {
+                setMeasurements([]);
+                setPendingAtom(null);
+              }}
+              className="apple-glass px-2.5 py-1 rounded-full text-[11px] font-semibold text-[#B26200] dark:text-[#FF9F0A] shadow-apple-sm flex items-center gap-1 hover:bg-[#FF9500]/10"
+              title="Clear all 3D distance measurements"
+            >
+              <Trash2 className="w-3 h-3" />
+              <span>Clear {measurements.length} Dist</span>
+            </button>
+          )}
+          {diffOverlayPdb && (
+            <span className="apple-glass px-2.5 py-1 rounded-full text-[11px] font-medium text-[#6E6E73] dark:text-[#E5E5EA] shadow-apple-sm">
+              Ghost Overlay ON
+            </span>
+          )}
+          {membraneOverlay && (
+            <span className="apple-glass px-2.5 py-1 rounded-full text-[11px] font-medium text-[#B26200] dark:text-[#FF9F0A] shadow-apple-sm">
+              Bilayer 30 Å ON
+            </span>
+          )}
           {highlightedChains && highlightedChains.ids.length > 0 && (
             <button
               onClick={onClearChainHighlight}

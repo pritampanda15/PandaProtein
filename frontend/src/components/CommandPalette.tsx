@@ -98,7 +98,10 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       ['validation', 'Go to Ramachandran & Geometry', 'Interactive Rama plot, Engh & Huber RMSZ'],
       ['clashes', 'Go to Clashes & Rotamers', 'MolProbity clashscore & NQH 180° flips'],
       ['ligands', 'Go to Ligands, Pockets & Metals', 'RDKit 2D structures, cavities & ETKDGv3 conformers'],
+      ['tunnels', 'Go to Tunnels & Pores (MOLE)', 'Voronoi substrate access tunnels, pores & bottleneck mutations'],
+      ['analysis', 'Go to Compare & Nets (RMSD / Membrane)', 'Kabsch superposition, bilayer Z-align, salt bridges & π–π'],
       ['export', 'Go to MD & Docking Export', 'Live GROMACS test, PDBQT, .gro & ZIP bundle'],
+      ['batch', 'Go to Batch Multi-Structure Prep', 'Upload multiple PDB/mmCIF/.gro files for bulk preparation'],
     ];
     for (const [id, title, sub] of tabs) {
       list.push({

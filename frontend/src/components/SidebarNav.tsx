@@ -7,8 +7,11 @@ import {
   Download,
   Droplets,
   FileEdit,
+  FolderKanban,
+  GitCompare,
   Layers,
   Microscope,
+  Waypoints,
   Wrench,
 } from 'lucide-react';
 import type { NavTab, StructureSessionState } from '../types/pdbprep';
@@ -17,9 +20,10 @@ interface SidebarNavProps {
   activeTab: NavTab;
   onSelect: (tab: NavTab) => void;
   session: StructureSessionState | null;
+  moleCount?: number;
 }
 
-export const SidebarNav: React.FC<SidebarNavProps> = ({ activeTab, onSelect, session }) => {
+export const SidebarNav: React.FC<SidebarNavProps> = ({ activeTab, onSelect, session, moleCount }) => {
   const fixerIssues = session
     ? session.pdbfixer.nonstandard_residues.length +
       session.pdbfixer.missing_atoms.length +
@@ -98,12 +102,33 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({ activeTab, onSelect, ses
           badge: session ? session.ligands_info.ligands.length + session.ligands_info.metals.length : undefined,
           badgeTone: 'bg-[#AF52DE]/15 text-[#8944AB] dark:text-[#BF5AF2]',
         },
+        {
+          id: 'tunnels',
+          label: 'Tunnels & Pores',
+          icon: <Waypoints className="w-4 h-4" />,
+          badge: moleCount && moleCount > 0 ? moleCount : 'MOLE',
+          badgeTone: 'bg-[#007AFF]/15 text-[#007AFF] dark:text-[#0A84FF]',
+        },
+        {
+          id: 'analysis',
+          label: 'Compare & Nets',
+          icon: <GitCompare className="w-4 h-4" />,
+          badge: 'RMSD',
+          badgeTone: 'bg-[#34C759]/15 text-[#1B8A38] dark:text-[#30D158]',
+        },
       ],
     },
     {
       title: 'Simulation & Docking',
       items: [
         { id: 'export', label: 'MD & Docking Export', icon: <Download className="w-4 h-4" /> },
+        {
+          id: 'batch',
+          label: 'Batch Prep Queue',
+          icon: <FolderKanban className="w-4 h-4" />,
+          badge: 'ZIP',
+          badgeTone: 'bg-[#5856D6]/15 text-[#5856D6] dark:text-[#7D7AFF]',
+        },
       ],
     },
   ];

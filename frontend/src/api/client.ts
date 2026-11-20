@@ -1,8 +1,13 @@
 import type {
+  BatchPrepResult,
   GromacsTestResult,
+  InteractionsMembraneData,
+  MoleAnalysisData,
+  MoleMutationScanResult,
   PropkaData,
   RotamerExplorerData,
   SolvationEstimate,
+  StructuralDiffData,
   StructureSessionState,
 } from '../types/pdbprep';
 
@@ -294,6 +299,121 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
+
+  analyzeMole: (sid: string, payload: Record<string, unknown>) =>
+    request<MoleAnalysisData>(`/api/sessions/${sid}/mole/analyze`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  exportMole: async (sid: string, payload: Record<string, unknown>, fallbackFilename: string) => {
+    const res = await fetch(`/api/sessions/${sid}/mole/export`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(`MOLE export failed (${res.status})`);
+    const blob = await res.blob();
+    const cd = res.headers.get('Content-Disposition') || '';
+    const match = cd.match(/filename="([^"]+)"/);
+    const filename = match ? match[1] : fallbackFilename;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  },
+
+  scanMoleMutations: (
+    sid: string,
+    payload: {
+      bottleneck_residues: string[];
+      bottleneck_point: [number, number, number];
+      baseline_bottleneck_A: number;
+      target_aa: string;
+      include_hetatms?: boolean;
+    }
+  ) =>
+    request<MoleMutationScanResult>(`/api/sessions/${sid}/mole/scan-mutations`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  exportLigand: async (sid: string, ligand_id: string, format: 'pdbqt' | 'mol2' | 'sdf' | 'pdb', ph = 7.4) => {
+    const res = await fetch(`/api/sessions/${sid}/ligands/export`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ligand_id, format, ph }),
+    });
+    if (!res.ok) {
+      let msg = `Ligand export failed (${res.status})`;
+      try {
+        const j = await res.json();
+        if (j?.detail) msg = j.detail;
+      } catch {
+        // ignore
+      }
+      throw new Error(msg);
+    }
+    const blob = await res.blob();
+    const cd = res.headers.get('Content-Disposition') || '';
+    const match = cd.match(/filename="([^"]+)"/);
+    const filename = match ? match[1] : `ligand.${format}`;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  },
+
+  getStructuralDiff: (sid: string) => request<StructuralDiffData>(`/api/sessions/${sid}/analysis/diff`),
+
+  alignReferenceFile: (sid: string, file: File) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return request<StructuralDiffData>(`/api/sessions/${sid}/analysis/align-upload`, {
+      method: 'POST',
+      body: fd,
+    });
+  },
+
+  getInteractionsMembrane: (sid: string) =>
+    request<InteractionsMembraneData>(`/api/sessions/${sid}/analysis/interactions`),
+
+  orientAlongZ: (sid: string, axis?: [number, number, number]) =>
+    request<{ result: { message: string }; state: StructureSessionState }>(`/api/sessions/${sid}/analysis/orient-z`, {
+      method: 'POST',
+      body: JSON.stringify(axis ? { axis } : {}),
+    }),
+
+  runBatchPrep: (files: File[], preset: string, ph: number, includeMole: boolean) => {
+    const fd = new FormData();
+    files.forEach((f) => fd.append('files', f));
+    fd.append('preset', preset);
+    fd.append('ph', String(ph));
+    fd.append('include_mole', String(includeMole));
+    return request<BatchPrepResult>('/api/batch/run', { method: 'POST', body: fd });
+  },
+
+  downloadBatchZip: async (batchId: string) => {
+    const res = await fetch(`/api/batch/${batchId}/download`);
+    if (!res.ok) throw new Error(`Batch download failed (${res.status})`);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `pandaprotein_batch_${batchId}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  },
 
   exportFile: async (sid: string, payload: Record<string, unknown>, fallbackFilename: string) => {
     const res = await fetch(`/api/sessions/${sid}/export`, {

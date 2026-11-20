@@ -50,6 +50,7 @@ class StructureSession:
     redo_stack: List[Checkpoint] = field(default_factory=list)
     history_log: List[str] = field(default_factory=list)
     baseline: Optional[Dict[str, Any]] = field(default=None)
+    original_pdb: Optional[str] = field(default=None)
     _cached_state: Optional[Dict[str, Any]] = field(default=None, repr=False)
 
     def invalidate_cache(self) -> None:
@@ -61,8 +62,11 @@ class StructureSession:
         try:
             _SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
             pdb_path = _SESSIONS_DIR / f"{self.session_id}.pdb"
+            orig_path = _SESSIONS_DIR / f"{self.session_id}_orig.pdb"
             meta_path = _SESSIONS_DIR / f"{self.session_id}.json"
             pdb_path.write_text(structure_to_pdb(self.structure), encoding="utf-8")
+            if self.original_pdb and not orig_path.exists():
+                orig_path.write_text(self.original_pdb, encoding="utf-8")
             payload = {
                 "session_id": self.session_id,
                 "name": self.name,
@@ -98,6 +102,8 @@ class StructureSession:
             st = gemmi.read_pdb_string(pdb_path.read_text(encoding="utf-8"))
             st.setup_entities()
             st.assign_label_seq_id()
+            orig_path = _SESSIONS_DIR / f"{sid}_orig.pdb"
+            orig_pdb = orig_path.read_text(encoding="utf-8") if orig_path.exists() else pdb_path.read_text(encoding="utf-8")
             sess = cls(
                 session_id=data["session_id"],
                 name=data["name"],
@@ -110,6 +116,7 @@ class StructureSession:
                 respect_disulfides=bool(data.get("respect_disulfides", True)),
                 history_log=list(data.get("history_log") or []),
                 baseline=data.get("baseline"),
+                original_pdb=orig_pdb,
                 undo_stack=[Checkpoint(**c) for c in (data.get("undo_stack") or [])],
                 redo_stack=[Checkpoint(**c) for c in (data.get("redo_stack") or [])],
             )
@@ -333,7 +340,13 @@ class SessionStore:
 
     def create(self, name: str, source: str, st: gemmi.Structure) -> StructureSession:
         sid = uuid.uuid4().hex[:10]
-        sess = StructureSession(session_id=sid, name=name, source=source, structure=st)
+        sess = StructureSession(
+            session_id=sid,
+            name=name,
+            source=source,
+            structure=st,
+            original_pdb=structure_to_pdb(st),
+        )
         sess.record_history(f"Loaded structure '{name}' ({source})")
         self._sessions[sid] = sess
         sess.save_to_disk()
