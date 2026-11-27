@@ -17,7 +17,7 @@
 
 **PandaProtein** is a modern full-stack protein preparation studio built with **React, TypeScript, and Tailwind CSS** (styled with Apple Human Interface Guidelines) and a high-performance **FastAPI** structural biology backend. It unifies **COOT crystallographic validation & interactive model building**, **PDBFixer structural repair**, **PROPKA 3.5.1 protonation**, **RDKit ligand/pocket preparation**, **MOLE 2.5 tunnels & HOLE ion-channel pore profiling**, **3D phospholipid bilayer orientation**, and **GROMACS (CHARMM36m / AMBER) + PandaX / AutoDock Vina / GNINA** export pipelines inside a single live 3D web workbench.
 
-> **Repository:** [https://github.com/pritampanda15/PandaProtein](https://github.com/pritampanda15/PandaProtein)
+> **Website & Docs:** [https://pritampanda15.github.io/PandaProtein/](https://pritampanda15.github.io/PandaProtein/) · **Repository:** [https://github.com/pritampanda15/PandaProtein](https://github.com/pritampanda15/PandaProtein)
 
 ---
 

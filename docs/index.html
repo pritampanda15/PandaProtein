@@ -1,0 +1,1017 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PandaProtein — Deep Protein Preparation &amp; Crystallographic Workbench</title>
+  <meta name="description" content="Full-stack structural biology workbench unifying COOT crystallographic validation, ADapt-parity docking preparation, PDBFixer, PROPKA 3.5.1, RDKit, MOLE 2.5, HOLE ion-channel profiling, 3D bilayers, and GROMACS CHARMM36m / Vina 1.2 pipelines." />
+  <link rel="icon" type="image/png" href="logo.png" />
+  <script src="https://3Dmol.org/build/3Dmol-min.js"></script>
+  <style>
+    :root {
+      --bg: #F5F5F7;
+      --surface: #FFFFFF;
+      --surface-muted: rgba(0, 0, 0, 0.032);
+      --glass: rgba(255, 255, 255, 0.78);
+      --border: rgba(0, 0, 0, 0.08);
+      --border-strong: rgba(0, 0, 0, 0.14);
+      --ink: #1D1D1F;
+      --ink-2: #515154;
+      --ink-3: #86868B;
+      --accent: #007AFF;
+      --accent-hover: #0066D6;
+      --accent-soft: rgba(0, 122, 255, 0.10);
+      --ok: #1B8A38;
+      --ok-soft: rgba(52, 199, 89, 0.13);
+      --warn: #B25000;
+      --warn-soft: rgba(255, 149, 0, 0.13);
+      --err: #D70015;
+      --err-soft: rgba(255, 59, 48, 0.13);
+      --code-bg: #141418;
+      --code-ink: #F5F5F7;
+      --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.04);
+      --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.08);
+    }
+
+    html.dark {
+      --bg: #0E0E11;
+      --surface: #18181D;
+      --surface-muted: rgba(255, 255, 255, 0.045);
+      --glass: rgba(24, 24, 29, 0.78);
+      --border: rgba(255, 255, 255, 0.09);
+      --border-strong: rgba(255, 255, 255, 0.16);
+      --ink: #F5F5F7;
+      --ink-2: #AEAEB2;
+      --ink-3: #8E8E93;
+      --accent: #0A84FF;
+      --accent-hover: #3B9EFF;
+      --accent-soft: rgba(10, 132, 255, 0.16);
+      --ok: #30D158;
+      --ok-soft: rgba(48, 209, 88, 0.16);
+      --warn: #FF9F0A;
+      --warn-soft: rgba(255, 159, 10, 0.16);
+      --err: #FF453A;
+      --err-soft: rgba(255, 69, 58, 0.16);
+      --code-bg: #101014;
+      --code-ink: #F5F5F7;
+      --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3), 0 6px 20px rgba(0, 0, 0, 0.25);
+      --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.45);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    code, pre {
+      font-family: "SF Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    /* Sticky Apple Glass Navbar */
+    .nav {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: var(--glass);
+      backdrop-filter: saturate(180%) blur(20px);
+      -webkit-backdrop-filter: saturate(180%) blur(20px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-inner {
+      max-width: 1140px;
+      margin: 0 auto;
+      padding: 0 24px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--ink);
+      font-weight: 600;
+      font-size: 16px;
+      letter-spacing: -0.02em;
+    }
+    .brand:hover { text-decoration: none; }
+    .brand img {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      font-size: 13.5px;
+      font-weight: 500;
+    }
+    .nav-links a { color: var(--ink-2); transition: color 0.15s; }
+    .nav-links a:hover { color: var(--ink); text-decoration: none; }
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      font-size: 13.5px;
+      font-weight: 500;
+      padding: 9px 16px;
+      border-radius: 11px;
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      text-decoration: none !important;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #FFFFFF;
+      box-shadow: 0 2px 8px rgba(0, 122, 255, 0.25);
+    }
+    .btn-primary:hover { background: var(--accent-hover); transform: translateY(-0.5px); }
+    .btn-secondary {
+      background: var(--surface);
+      color: var(--ink);
+      border-color: var(--border-strong);
+    }
+    .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-icon {
+      width: 34px;
+      height: 34px;
+      padding: 0;
+      border-radius: 10px;
+      background: var(--surface-muted);
+      color: var(--ink-2);
+      border: 1px solid var(--border);
+    }
+    .btn-icon:hover { color: var(--ink); border-color: var(--border-strong); }
+
+    /* Containers & Typography */
+    .wrap { max-width: 1140px; margin: 0 auto; padding: 0 24px; }
+    section { padding: 72px 0; }
+    .eyebrow {
+      font-size: 11.5px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      margin-bottom: 10px;
+    }
+    h1 {
+      font-size: clamp(34px, 5vw, 54px);
+      font-weight: 700;
+      letter-spacing: -0.032em;
+      line-height: 1.07;
+      margin-bottom: 18px;
+    }
+    h2 {
+      font-size: clamp(24px, 3vw, 34px);
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      line-height: 1.15;
+      margin-bottom: 12px;
+    }
+    .lead {
+      font-size: 17px;
+      color: var(--ink-2);
+      max-width: 660px;
+      line-height: 1.6;
+    }
+
+    /* Hero */
+    .hero { padding: 56px 0 64px; }
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1.08fr 0.92fr;
+      gap: 36px;
+      align-items: center;
+    }
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      padding: 4px 11px;
+      border-radius: 999px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--ink-2);
+    }
+    .pill-accent {
+      background: var(--accent-soft);
+      border-color: transparent;
+      color: var(--accent);
+      font-weight: 600;
+    }
+    .hero-cta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 26px;
+    }
+
+    /* Quick Install Bar */
+    .cmd-bar {
+      margin-top: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      background: var(--code-bg);
+      color: var(--code-ink);
+      padding: 12px 14px 12px 16px;
+      border-radius: 13px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: var(--shadow-sm);
+      max-width: 560px;
+    }
+    .cmd-bar code {
+      font-size: 12.5px;
+      overflow-x: auto;
+      white-space: nowrap;
+    }
+    .cmd-copy {
+      background: rgba(255, 255, 255, 0.1);
+      color: #FFFFFF;
+      border: none;
+      border-radius: 8px;
+      padding: 5px 10px;
+      font-size: 11.5px;
+      font-weight: 500;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .cmd-copy:hover { background: var(--accent); }
+
+    /* Interactive 3D Hero Card */
+    .viewer-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 22px;
+      overflow: hidden;
+      box-shadow: var(--shadow-lg);
+    }
+    .viewer-head {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 12px;
+    }
+    .dots { display: flex; gap: 6px; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--border-strong); }
+    .viewer-controls {
+      display: flex;
+      gap: 4px;
+      background: var(--surface-muted);
+      padding: 3px;
+      border-radius: 9px;
+    }
+    .v-btn {
+      border: none;
+      background: transparent;
+      color: var(--ink-2);
+      font-size: 11px;
+      font-weight: 500;
+      padding: 4px 9px;
+      border-radius: 7px;
+      cursor: pointer;
+    }
+    .v-btn.active {
+      background: var(--accent);
+      color: #FFFFFF;
+    }
+    #hero-3d {
+      width: 100%;
+      height: 360px;
+      position: relative;
+      background: #ECEEF2;
+    }
+    html.dark #hero-3d { background: #111116; }
+    .viewer-foot {
+      padding: 10px 16px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11.5px;
+      color: var(--ink-3);
+    }
+
+    /* Cards & Grids */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 24px;
+      box-shadow: var(--shadow-sm);
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+      margin-top: 32px;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 18px;
+      margin-top: 28px;
+    }
+    .feat-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 14px;
+      margin-bottom: 14px;
+    }
+    .card h3 {
+      font-size: 15.5px;
+      font-weight: 600;
+      letter-spacing: -0.015em;
+      margin-bottom: 8px;
+    }
+    .card p {
+      font-size: 13.5px;
+      color: var(--ink-2);
+      line-height: 1.55;
+    }
+    .tag-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 14px;
+    }
+    .tag {
+      font-size: 11px;
+      font-weight: 500;
+      padding: 3px 8px;
+      border-radius: 7px;
+      background: var(--surface-muted);
+      color: var(--ink-2);
+    }
+
+    /* Install Tabs */
+    .tabs {
+      display: inline-flex;
+      gap: 4px;
+      padding: 4px;
+      border-radius: 12px;
+      background: var(--surface-muted);
+      border: 1px solid var(--border);
+      margin: 24px 0 16px;
+    }
+    .tab-btn {
+      border: none;
+      background: transparent;
+      color: var(--ink-2);
+      font-size: 12.5px;
+      font-weight: 500;
+      padding: 7px 14px;
+      border-radius: 9px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .tab-btn.active {
+      background: var(--surface);
+      color: var(--ink);
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+    }
+    .code-block {
+      background: var(--code-bg);
+      color: var(--code-ink);
+      border-radius: 16px;
+      padding: 18px 20px;
+      font-size: 12.5px;
+      line-height: 1.65;
+      overflow-x: auto;
+      position: relative;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .code-block .comment { color: #8E8E93; }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* Tables */
+    .table-wrap {
+      overflow-x: auto;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      margin-top: 26px;
+      box-shadow: var(--shadow-sm);
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+    th, td {
+      padding: 13px 16px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    th {
+      font-size: 11.5px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--ink-3);
+      background: var(--surface-muted);
+    }
+    tr:last-child td { border-bottom: none; }
+    .badge-ok {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11.5px;
+      font-weight: 600;
+      background: var(--ok-soft);
+      color: var(--ok);
+    }
+    .badge-neutral {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11.5px;
+      font-weight: 500;
+      background: var(--surface-muted);
+      color: var(--ink-2);
+    }
+
+    /* Footer */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 40px 0 56px;
+      color: var(--ink-3);
+      font-size: 13px;
+    }
+    .foot-grid {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+    }
+
+    @media (max-width: 920px) {
+      .hero-grid, .grid-3, .grid-2 { grid-template-columns: 1fr; }
+      .nav-links { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Navbar -->
+  <header class="nav">
+    <div class="nav-inner">
+      <a href="#" class="brand">
+        <img src="logo.png" alt="PandaProtein Logo" />
+        <span>PandaProtein</span>
+      </a>
+      <nav class="nav-links">
+        <a href="#capabilities">Capabilities</a>
+        <a href="#install">Install &amp; CLI</a>
+        <a href="#tutorials">Worked Cases</a>
+        <a href="#comparison">Benchmarks</a>
+        <a href="#license">License</a>
+      </nav>
+      <div class="nav-actions">
+        <button id="theme-toggle" class="btn btn-icon" title="Toggle Light / Dark Mode" aria-label="Toggle Theme">◐</button>
+        <a href="https://github.com/pritampanda15/PandaProtein" class="btn btn-secondary" target="_blank" rel="noopener">GitHub</a>
+        <a href="#install" class="btn btn-primary">Install v2.0</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="wrap">
+      <div class="hero-grid">
+        <div>
+          <div class="pill-row">
+            <span class="pill pill-accent">v2.0.0 · Cross-Platform Python 3.10+</span>
+            <span class="pill">macOS · Linux · Windows</span>
+            <span class="pill">PolyForm Noncommercial 1.0.0</span>
+          </div>
+          <h1>Deep Protein Preparation &amp; Crystallographic Workbench.</h1>
+          <p class="lead">
+            Unify <strong>COOT crystallographic validation</strong>, <strong>ADapt-parity biological assembly &amp; docking prep</strong>, <strong>PDBFixer</strong>, <strong>PROPKA 3.5.1</strong>, <strong>RDKit</strong>, <strong>MOLE 2.5</strong>, <strong>HOLE ion-channel profiling</strong>, and <strong>GROMACS CHARMM36m / Vina 1.2</strong> exports inside one live 3D web workbench.
+          </p>
+
+          <div class="cmd-bar">
+            <code id="hero-cmd">pip install git+https://github.com/pritampanda15/PandaProtein.git &amp;&amp; pandaprotein</code>
+            <button class="cmd-copy" onclick="copyText('hero-cmd', this)">Copy</button>
+          </div>
+
+          <div class="hero-cta">
+            <a href="#install" class="btn btn-primary">Quick Start Guide</a>
+            <a href="#capabilities" class="btn btn-secondary">Explore 9 Engines</a>
+            <a href="https://github.com/pritampanda15/PandaProtein" class="btn btn-secondary" target="_blank" rel="noopener">View Source on GitHub →</a>
+          </div>
+        </div>
+
+        <!-- Live 3D Interactive Molecular Preview -->
+        <div class="viewer-card">
+          <div class="viewer-head">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <div class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+              <span style="font-weight:600;color:var(--ink);">6LU7 · SARS-CoV-2 M<sup>pro</sup> + N3</span>
+            </div>
+            <div class="viewer-controls">
+              <button class="v-btn active" onclick="setHeroStyle('cartoon', this)">Cartoon</button>
+              <button class="v-btn" onclick="setHeroStyle('surface', this)">Surface</button>
+              <button class="v-btn" onclick="setHeroStyle('sticks', this)">Pocket</button>
+            </div>
+          </div>
+          <div id="hero-3d">
+            <div id="hero-loading" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:12.5px;color:var(--ink-3);">
+              Loading interactive 3D structure (RCSB 6LU7)…
+            </div>
+          </div>
+          <div class="viewer-foot">
+            <span>Drag to rotate · Scroll to zoom</span>
+            <span>Interactive 3Dmol.js WebGL</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Capabilities -->
+  <section id="capabilities" style="border-top: 1px solid var(--border);">
+    <div class="wrap">
+      <div class="eyebrow">Unified Structural Biology Suite</div>
+      <h2>Nine integrated engines. Zero command-line glue.</h2>
+      <p class="lead">
+        From raw X-ray, cryo-EM, or AlphaFold coordinates to verified GROMACS CHARMM36m MD topologies and Vina 1.2 / PandaX docking receptors with cryptographic provenance.
+      </p>
+
+      <div class="grid-3">
+        <div class="card">
+          <div class="feat-icon">01</div>
+          <h3>ADapt-Parity Prep Tree &amp; Biological Assemblies</h3>
+          <p>Switch losslessly between ASU and declared <code>REMARK 350</code> / mmCIF biological assemblies (Biomol 1, 2…) with axial-ion deduplication, translucent symmetry-copy tinting, DNA/RNA receptor support, and per-item Receptor/Ligand/Exclude checkboxes.</p>
+          <div class="tag-list">
+            <span class="tag">Biomol 1/2/…</span>
+            <span class="tag">CU → ZN Sub</span>
+            <span class="tag">Ion Charges</span>
+            <span class="tag">DNA / RNA</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="feat-icon">02</div>
+          <h3>COOT Crystallographic Workbench</h3>
+          <p>Clickable Top8000 Ramachandran plot with neighbor-safe outlier refinement, Dunbrack/Richardson clash-scored rotamer browser, Engh &amp; Huber geometry RMSZ, cis↔trans flips, chirality repair, NQH flips, point mutations, and monotonic Auto-Refine with ⌘Z Undo/Redo.</p>
+          <div class="tag-list">
+            <span class="tag">Ramachandran</span>
+            <span class="tag">Rotamers</span>
+            <span class="tag">Clashscore</span>
+            <span class="tag">⌘Z Undo</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="feat-icon">03</div>
+          <h3>Deep PDBFixer &amp; Selective Gap Rebuild</h3>
+          <p>Visualizes <code>REMARK 465</code> internal gaps (dashed orange lines + midpoint spheres) and missing N/C termini in 3D. Selectively rebuild individual gaps across 3 seeds guarded by strict peptide geometry &amp; steric clearance gates, rendered with magenta carbons.</p>
+          <div class="tag-list">
+            <span class="tag">REMARK 465</span>
+            <span class="tag">3-Seed FABRIK</span>
+            <span class="tag">MSE → MET</span>
+            <span class="tag">CYX S–S</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="feat-icon">04</div>
+          <h3>PROPKA 3.5.1 Titration &amp; H-Bond Network</h3>
+          <p>Empirical pK<sub>a</sub> prediction with a live pH 0–14 slider, SVG titration curve, isoelectric point (pI), automatic metal-coordination &amp; disulfide protection, per-residue state overrides (HID/HIE/HIP/ASH/GLH/CYM/LYN), and state-specific hydrogen building.</p>
+          <div class="tag-list">
+            <span class="tag">PROPKA 3.5.1</span>
+            <span class="tag">Live pH Slider</span>
+            <span class="tag">Metal Lock</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="feat-icon">05</div>
+          <h3>RDKit Ligands, Pockets &amp; RCSB Verification</h3>
+          <p>2D SVG depictions, Lipinski Ro5 descriptors, cached RCSB Data API ligand-of-interest verification, ETKDGv3 + MMFF94 conformers, 1-click ligand <code>.pdbqt</code> / Tripos <code>.mol2</code> export, 3D druggable pocket finder, and native X-ray grid box coordinates for PandaX &amp; Vina.</p>
+          <div class="tag-list">
+            <span class="tag">RCSB CCD</span>
+            <span class="tag">.pdbqt / .mol2</span>
+            <span class="tag">Pocket Finder</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="feat-icon">06</div>
+          <h3>MOLE 2.5 Tunnels &amp; HOLE Ion Channels</h3>
+          <p>3D Voronoi substrate access tunnels &amp; trans-protein pores with an in-silico bottleneck mutation scanner, plus Smart et al. (1996) HOLE pore radius R(s), classic Red/Green/Blue 3D pore surfaces, gate residue mapping, and conductance (pS).</p>
+          <div class="tag-list">
+            <span class="tag">MOLE 2.5</span>
+            <span class="tag">HOLE R(s)</span>
+            <span class="tag">Conductance pS</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="feat-icon">07</div>
+          <h3>Kabsch RMSD, 3D Bilayer &amp; Networks</h3>
+          <p>Exact Kabsch SVD Before/After &amp; reference superposition with 3D translucent ghost overlays, sliding 30 Å transmembrane belt detector with realistic 3D phospholipid bilayer &amp; 1-click +Z alignment, plus salt bridges and aromatic π–π stacking networks.</p>
+          <div class="tag-list">
+            <span class="tag">Kabsch SVD</span>
+            <span class="tag">3D Bilayer</span>
+            <span class="tag">+Z Align</span>
+            <span class="tag">π–π / Salt</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="feat-icon">08</div>
+          <h3>GROMACS CHARMM36m &amp; Cryptographic Provenance</h3>
+          <p>Live <code>gmx pdb2gmx</code> pre-flight checks, CHARMM36m / AMBER99SB-ILDN MDP bundles, Vina 1.2 column-aligned <code>.pdbqt</code> with hex serials &gt;99,999, all-atom <code>_rec_H.pdb</code>, <code>REMARK 850</code> headers, and MD5/SHA-256 verifiable <code>provenance_session.json</code>.</p>
+          <div class="tag-list">
+            <span class="tag">CHARMM36m</span>
+            <span class="tag">Vina 1.2</span>
+            <span class="tag">REMARK 850</span>
+            <span class="tag">MD5 Verify</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="feat-icon">09</div>
+          <h3>Batch Queue &amp; Apple-Pro 3D UX</h3>
+          <p>Drag-and-drop batch multi-structure preparation exporting a unified ZIP + summary CSV. Persistent 3Dmol.js canvas with 2-click Å distance ruler, Measured Distances HUD, chain spotlight, Reframe (<code>R</code>), and Spotlight Command Palette (<code>⌘K</code>).</p>
+          <div class="tag-list">
+            <span class="tag">Batch ZIP</span>
+            <span class="tag">3D Ruler (Å)</span>
+            <span class="tag">⌘K Spotlight</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Install & CLI -->
+  <section id="install" style="border-top: 1px solid var(--border);">
+    <div class="wrap">
+      <div class="eyebrow">Zero-Node Installation</div>
+      <h2>Up and running in 30 seconds.</h2>
+      <p class="lead">
+        The compiled React UI ships bundled inside the Python package — no Node.js, no Python 3.7 legacy environment, and works natively on macOS, Linux, and Windows (Python 3.10+).
+      </p>
+
+      <div class="tabs">
+        <button class="tab-btn active" onclick="showTab('tab-pip', this)">pip / pipx / uv</button>
+        <button class="tab-btn" onclick="showTab('tab-hpc', this)">HPC / SSH Cluster</button>
+        <button class="tab-btn" onclick="showTab('tab-dev', this)">Local Dev</button>
+      </div>
+
+      <div id="tab-pip" class="tab-panel active">
+        <pre class="code-block"><code><span class="comment"># Install directly from GitHub (Python 3.10+)</span>
+pip install git+https://github.com/pritampanda15/PandaProtein.git
+
+<span class="comment"># Or install in an isolated environment with pipx or uv:</span>
+pipx install git+https://github.com/pritampanda15/PandaProtein.git
+uv tool install git+https://github.com/pritampanda15/PandaProtein.git
+
+<span class="comment"># Launch the full 3D workbench (auto-picks an open port &amp; opens browser)</span>
+pandaprotein
+
+<span class="comment"># Optional: open a specific PDB entry directly from the CLI</span>
+pandaprotein --pdb 6GGD</code></pre>
+      </div>
+
+      <div id="tab-hpc" class="tab-panel">
+        <pre class="code-block"><code><span class="comment"># On your remote cluster / compute node (token-protected + auto-exit after 15 min idle):</span>
+pandaprotein --host 127.0.0.1 --port 8000 --no-browser --token --idle-exit 15
+
+<span class="comment"># On your local machine, forward the port via SSH and open the printed ?t=&lt;token&gt; URL:</span>
+ssh -L 8000:127.0.0.1:8000 user@cluster.university.edu
+
+<span class="comment"># Behind an institutional reverse proxy (no path rewriting required):</span>
+pandaprotein --base-path /pandaprotein --no-browser</code></pre>
+      </div>
+
+      <div id="tab-dev" class="tab-panel">
+        <pre class="code-block"><code>git clone https://github.com/pritampanda15/PandaProtein.git
+cd PandaProtein
+
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+
+npm --prefix frontend install
+npm --prefix frontend run build    <span class="comment"># compiles React UI &amp; syncs backend/static/</span>
+
+./start.sh --dev                   <span class="comment"># FastAPI :8000 + Vite HMR :5173</span></code></pre>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>CLI Flag / URL Parameter</th>
+              <th>Description</th>
+              <th>Example</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>--port</code> / <code>--host</code></td>
+              <td>Custom bind host &amp; port (auto-increments if busy)</td>
+              <td><code>pandaprotein --port 8080</code></td>
+            </tr>
+            <tr>
+              <td><code>--token</code></td>
+              <td>Enforces random access token (<code>?t=…</code> / header) for shared servers</td>
+              <td><code>pandaprotein --token --no-browser</code></td>
+            </tr>
+            <tr>
+              <td><code>--base-path</code></td>
+              <td>Serve cleanly under a reverse-proxy URL prefix</td>
+              <td><code>pandaprotein --base-path /pandaprotein</code></td>
+            </tr>
+            <tr>
+              <td><code>--idle-exit MIN</code></td>
+              <td>Auto-stop cleanly after <em>N</em> minutes with no open browser tab</td>
+              <td><code>pandaprotein --idle-exit 10</code></td>
+            </tr>
+            <tr>
+              <td><code>--reuse</code></td>
+              <td>Open a new tab on an already-running local PandaProtein server</td>
+              <td><code>pandaprotein --reuse --pdb 4A1X</code></td>
+            </tr>
+            <tr>
+              <td><code>?pdb=&amp;assembly=&amp;tab=</code></td>
+              <td>URL deep-link directly into an entry, Biomol assembly, and panel</td>
+              <td><code>/?pdb=6GGD&amp;assembly=2&amp;tab=prep-tree</code></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Worked Cases -->
+  <section id="tutorials" style="border-top: 1px solid var(--border);">
+    <div class="wrap">
+      <div class="eyebrow">Worked Benchmark Cases</div>
+      <h2>Real-world structural preparation workflows.</h2>
+      <p class="lead">
+        Launch PandaProtein locally and open any of these worked structures to test biological assemblies, ion typing, gap rebuilding, and ion-channel profiling.
+      </p>
+
+      <div class="grid-2">
+        <div class="card">
+          <h3>Case 1 · SARS-CoV-2 M<sup>pro</sup> (<code>6LU7</code>) — Dimer &amp; Native Redock Prep</h3>
+          <p>Loaded by default on launch. Open <strong>Prep Tree (ADapt)</strong> to switch between ASU and <strong>Biomol 1</strong>, inspect the N3 inhibitor's native binding-site grid box coordinates in <strong>Ligands &amp; Metals</strong>, protonate via <strong>PROPKA 3.5.1</strong> at pH 7.4, and export Vina 1.2 / PandaX <code>.pdbqt</code> + MD5 <code>provenance_session.json</code>.</p>
+          <div class="tag-list">
+            <span class="tag">URL: /?pdb=6LU7&amp;tab=prep-tree</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Case 2 · Metalloprotease (<code>6GGD</code>) — Biomol 2, Zinc Charges &amp; AltLocs</h3>
+          <p>Fetch <code>6GGD</code> and select <strong>Biomol 2</strong>. Keep catalytic <code>ZN 401</code> in the receptor with verified <code>+2.0</code> CCD formal charge, assign <code>EYB 402</code> as Ligand (1-click <code>.pdbqt</code> export), resolve alternate locations with occupancy radio pills, or mutate active-site residues in <strong>COOT Workbench</strong>.</p>
+          <div class="tag-list">
+            <span class="tag">URL: /?pdb=6GGD&amp;assembly=2&amp;tab=prep-tree</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Case 3 · Missing Loops (<code>4A1X</code>) — <code>REMARK 465</code> Markers &amp; Refusal Gate</h3>
+          <p>Fetch <code>4A1X</code> to see internal gaps drawn as dashed orange lines with midpoint spheres and missing termini as amber markers in 3D. Click <strong>Rebuild Gap</strong> to run 3-seed FABRIK closure with strict C–N, CA–CA, ω, chirality, and clash checks — passing loops render in magenta while unclosable gaps are refused with diagnostics.</p>
+          <div class="tag-list">
+            <span class="tag">URL: /?pdb=4A1X&amp;tab=prep-tree</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Case 4 · KcsA Ion Channel (<code>1K4C</code>) — HOLE Pore Radius &amp; 3D Bilayer</h3>
+          <p>Fetch <code>1K4C</code>, open <strong>Compare &amp; Nets</strong> to align the transmembrane belt onto <code>+Z</code> and render the realistic 3D phospholipid bilayer, then run <strong>HOLE</strong> inside <strong>Tunnels &amp; Pores</strong> to profile the <code>TVGYG</code> selectivity filter radius R(s) and pore conductance (pS).</p>
+          <div class="tag-list">
+            <span class="tag">URL: /?pdb=1K4C&amp;tab=tunnels</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Comparison Table -->
+  <section id="comparison" style="border-top: 1px solid var(--border);">
+    <div class="wrap">
+      <div class="eyebrow">Capability Matrix</div>
+      <h2>Full docking-prep parity, plus crystallography, MD &amp; pores.</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Capability</th>
+              <th>PandaProtein v2.0</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Biological Assemblies (<code>REMARK 350</code> / mmCIF) &amp; Symmetry Copies</td>
+              <td><span class="badge-ok">Included</span></td>
+              <td>ASU + Biomol 1..N, axial-ion deduplication, translucent 3D Sym Tint</td>
+            </tr>
+            <tr>
+              <td>AD4 Atom-Type Validator, Ion Substitution (<code>CU → ZN</code>) &amp; Manual Charges</td>
+              <td><span class="badge-ok">Included</span></td>
+              <td>CCD defaults, inline charge overrides, DNA/RNA receptor support</td>
+            </tr>
+            <tr>
+              <td><code>REMARK 465</code> 3D Gap &amp; Terminus Markers + Selective Per-Gap Rebuild</td>
+              <td><span class="badge-ok">Included</span></td>
+              <td>3-seed FABRIK closure + strict geometry &amp; clash refusal gate</td>
+            </tr>
+            <tr>
+              <td>Vina 1.2 <code>.pdbqt</code> + All-Atom <code>_rec_H.pdb</code> + <code>REMARK 850</code> + MD5 Provenance</td>
+              <td><span class="badge-ok">Included</span></td>
+              <td>Cols 71–76 charge alignment, hex serials &gt;99,999, built-in JSON verifier</td>
+            </tr>
+            <tr>
+              <td>COOT Crystallography (Ramachandran, Rotamers, Pepflip, Clashes, Undo/Redo)</td>
+              <td><span class="badge-ok">Included</span></td>
+              <td>Interactive Top8000 SVG plot, Dunbrack/Richardson library, monotonic Auto-Refine</td>
+            </tr>
+            <tr>
+              <td>Live pH 0–14 PROPKA 3.5.1 Titration + GROMACS CHARMM36m / AMBER Bundle</td>
+              <td><span class="badge-ok">Included</span></td>
+              <td>Live <code>gmx pdb2gmx</code> test, solvation/ion calculator, <code>.gro</code> I/O, APBS <code>.pqr</code></td>
+            </tr>
+            <tr>
+              <td>MOLE 2.5 Tunnels, HOLE Ion-Channel Pore Radius, Kabsch SVD &amp; 3D Bilayer</td>
+              <td><span class="badge-ok">Included</span></td>
+              <td>Bottleneck mutation scanner, Smart et al. conductance (pS), +Z aligner</td>
+            </tr>
+            <tr>
+              <td>Cross-Platform Installation (macOS, Linux, Windows · Python 3.10+)</td>
+              <td><span class="badge-ok">Included</span></td>
+              <td>Single <code>pip install</code> command, zero Node.js required; companion docking in <strong>PandaX</strong></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- License & Author -->
+  <section id="license" style="border-top: 1px solid var(--border);">
+    <div class="wrap">
+      <div class="grid-2">
+        <div class="card">
+          <div class="eyebrow">Academic &amp; Noncommercial License</div>
+          <h3>PolyForm Noncommercial License 1.0.0</h3>
+          <p style="margin-top:8px;">
+            PandaProtein is licensed under <code>SPDX: PolyForm-Noncommercial-1.0.0</code>. Free for academic, educational, public research, non-profit, government, and personal noncommercial use.
+          </p>
+          <p style="margin-top:10px;">
+            Commercial licensing inquiries: <a href="mailto:pritam@stanford.edu">pritam@stanford.edu</a>.
+          </p>
+          <div class="tag-list">
+            <a href="https://github.com/pritampanda15/PandaProtein/blob/main/LICENSE" target="_blank" rel="noopener" class="tag">Read LICENSE →</a>
+            <a href="https://github.com/pritampanda15/PandaProtein/blob/main/NOTICE" target="_blank" rel="noopener" class="tag">Read NOTICE →</a>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="eyebrow">Author &amp; Ecosystem</div>
+          <h3>Pritam Kumar Panda</h3>
+          <p style="margin-top:8px;">
+            Developed for structural biology, molecular dynamics, and structure-based drug discovery workflows. Exported receptors, ligands, and native grid boxes integrate directly with <strong>PandaX</strong> (live 3D molecular docking), <strong>AutoDock Vina / GNINA</strong>, and <strong>GROMACS</strong>.
+          </p>
+          <div class="tag-list">
+            <a href="https://github.com/pritampanda15/PandaProtein" target="_blank" rel="noopener" class="tag">GitHub Repository →</a>
+            <a href="https://github.com/pritampanda15/PandaProtein/issues" target="_blank" rel="noopener" class="tag">Report an Issue →</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer>
+    <div class="wrap foot-grid">
+      <div>Required Notice: Copyright © 2025–2026 Pritam Kumar Panda · PandaProtein v2.0.0</div>
+      <div style="display:flex;gap:18px;">
+        <a href="https://github.com/pritampanda15/PandaProtein" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/pritampanda15/PandaProtein/blob/main/LICENSE" target="_blank" rel="noopener">License</a>
+        <a href="mailto:pritam@stanford.edu">Contact</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // Light / Dark Mode Toggle
+    const themeBtn = document.getElementById('theme-toggle');
+    let heroViewer = null;
+    let heroMode = 'cartoon';
+
+    function updateViewerBg() {
+      if (!heroViewer) return;
+      const isDark = document.documentElement.classList.contains('dark');
+      heroViewer.setBackgroundColor(isDark ? 0x111116 : 0xECEEF2);
+      heroViewer.render();
+    }
+
+    themeBtn.addEventListener('click', () => {
+      document.documentElement.classList.toggle('dark');
+      updateViewerBg();
+    });
+
+    // Copy helper
+    function copyText(id, btn) {
+      const txt = document.getElementById(id).textContent.trim();
+      navigator.clipboard.writeText(txt).then(() => {
+        const orig = btn.textContent;
+        btn.textContent = 'Copied';
+        setTimeout(() => (btn.textContent = orig), 1600);
+      });
+    }
+
+    // Install tabs
+    function showTab(tabId, btn) {
+      document.querySelectorAll('.tab-panel').forEach((p) => p.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
+      document.getElementById(tabId).classList.add('active');
+      btn.classList.add('active');
+    }
+
+    // Live 3Dmol.js Hero Viewer (RCSB 6LU7)
+    function applyHeroStyle(mode) {
+      if (!heroViewer) return;
+      heroMode = mode;
+      heroViewer.removeAllSurfaces();
+      heroViewer.setStyle({}, {});
+      if (mode === 'cartoon') {
+        heroViewer.setStyle({ hetflag: false }, { cartoon: { color: '#007AFF', opacity: 0.92 } });
+        heroViewer.setStyle({ hetflag: true, not: { resn: ['HOH', 'WAT'] } }, { stick: { radius: 0.24, colorscheme: 'orangeCarbon' } });
+        heroViewer.zoomTo();
+      } else if (mode === 'surface') {
+        heroViewer.setStyle({ hetflag: false }, { cartoon: { color: '#8E8E93', opacity: 0.35 } });
+        heroViewer.addSurface($3Dmol.SurfaceType.VDW, { opacity: 0.72, color: '#007AFF' }, { hetflag: false });
+        heroViewer.setStyle({ hetflag: true, not: { resn: ['HOH', 'WAT'] } }, { stick: { radius: 0.26, colorscheme: 'orangeCarbon' } });
+        heroViewer.zoomTo();
+      } else {
+        heroViewer.setStyle({ hetflag: false }, { cartoon: { color: '#8E8E93', opacity: 0.3 } });
+        heroViewer.setStyle({ hetflag: true, not: { resn: ['HOH', 'WAT'] } }, { stick: { radius: 0.26, colorscheme: 'orangeCarbon' }, sphere: { scale: 0.22, colorscheme: 'orangeCarbon' } });
+        heroViewer.addStyle({ within: { distance: 5.0, sel: { resn: 'N3' } }, hetflag: false }, { stick: { radius: 0.14, colorscheme: 'default' } });
+        heroViewer.zoomTo({ resn: 'N3' }, 400);
+      }
+      heroViewer.render();
+    }
+
+    function setHeroStyle(mode, btn) {
+      document.querySelectorAll('.v-btn').forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      applyHeroStyle(mode);
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      const el = document.getElementById('hero-3d');
+      const loading = document.getElementById('hero-loading');
+      if (!el || typeof $3Dmol === 'undefined') return;
+      heroViewer = $3Dmol.createViewer(el, { backgroundColor: '#ECEEF2', antialias: true });
+      $3Dmol.download('pdb:6LU7', heroViewer, {}, () => {
+        if (loading) loading.style.display = 'none';
+        applyHeroStyle('cartoon');
+        heroViewer.spin('y', 0.35);
+      });
+    });
+  </script>
+</body>
+</html>
