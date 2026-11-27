@@ -55,7 +55,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({ activeTab, onSelect, ses
           label: 'Chains & Renaming',
           icon: <FileEdit className="w-4 h-4" />,
           badge: session ? `${session.metadata.chain_count} ch` : undefined,
-          badgeTone: 'bg-[#5856D6]/15 text-[#5856D6] dark:text-[#7D7AFF]',
+          badgeTone: 'pp-badge-neutral',
         },
       ],
     },
@@ -63,18 +63,37 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({ activeTab, onSelect, ses
       title: 'Deep Preparation',
       items: [
         {
+          id: 'prep-tree',
+          label: 'Prep Tree (ADapt)',
+          icon: <Layers className="w-4 h-4" />,
+          badge:
+            session?.prep_tree?.summary?.unsupported_ad4_residues &&
+            session.prep_tree.summary.unsupported_ad4_residues > 0
+              ? `${session.prep_tree.summary.unsupported_ad4_residues} AD4`
+              : session?.active_assembly_id && session.active_assembly_id !== 'ASU'
+              ? `Bio ${session.active_assembly_id}`
+              : session?.assemblies && session.assemblies.length > 1
+              ? `${session.assemblies.length - 1} Bio`
+              : 'Tree',
+          badgeTone:
+            session?.prep_tree?.summary?.unsupported_ad4_residues &&
+            session.prep_tree.summary.unsupported_ad4_residues > 0
+              ? 'pp-badge-err'
+              : 'pp-badge-neutral',
+        },
+        {
           id: 'pdbfixer',
           label: 'PDBFixer Pipeline',
           icon: <Wrench className="w-4 h-4" />,
           badge: fixerIssues > 0 ? fixerIssues : undefined,
-          badgeTone: 'bg-[#FF9500]/15 text-[#B26200] dark:text-[#FF9F0A]',
+          badgeTone: 'pp-badge-warn',
         },
         {
           id: 'propka',
           label: 'PROPKA 3 & pH',
           icon: <Droplets className="w-4 h-4" />,
           badge: session ? `pH ${session.propka.ph}` : undefined,
-          badgeTone: 'bg-[#007AFF]/12 text-[#007AFF] dark:text-[#0A84FF]',
+          badgeTone: 'pp-badge-neutral',
         },
       ],
     },
@@ -86,35 +105,35 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({ activeTab, onSelect, ses
           label: 'Ramachandran & Geom',
           icon: <Activity className="w-4 h-4" />,
           badge: valIssues > 0 ? valIssues : undefined,
-          badgeTone: 'bg-[#FF3B30]/15 text-[#D70015] dark:text-[#FF453A]',
+          badgeTone: 'pp-badge-err',
         },
         {
           id: 'clashes',
           label: 'Clashes & Rotamers',
           icon: <AlertTriangle className="w-4 h-4" />,
           badge: clashRotIssues > 0 ? clashRotIssues : undefined,
-          badgeTone: 'bg-[#FF3B30]/15 text-[#D70015] dark:text-[#FF453A]',
+          badgeTone: 'pp-badge-err',
         },
         {
           id: 'ligands',
           label: 'Ligands & Metals',
           icon: <Beaker className="w-4 h-4" />,
           badge: session ? session.ligands_info.ligands.length + session.ligands_info.metals.length : undefined,
-          badgeTone: 'bg-[#AF52DE]/15 text-[#8944AB] dark:text-[#BF5AF2]',
+          badgeTone: 'pp-badge-neutral',
         },
         {
           id: 'tunnels',
           label: 'Tunnels & Pores',
           icon: <Waypoints className="w-4 h-4" />,
           badge: moleCount && moleCount > 0 ? moleCount : 'MOLE/HOLE',
-          badgeTone: 'bg-[#007AFF]/15 text-[#007AFF] dark:text-[#0A84FF]',
+          badgeTone: 'pp-badge-neutral',
         },
         {
           id: 'analysis',
           label: 'Compare & Nets',
           icon: <GitCompare className="w-4 h-4" />,
           badge: 'RMSD',
-          badgeTone: 'bg-[#34C759]/15 text-[#1B8A38] dark:text-[#30D158]',
+          badgeTone: 'pp-badge-neutral',
         },
       ],
     },
@@ -127,7 +146,7 @@ export const SidebarNav: React.FC<SidebarNavProps> = ({ activeTab, onSelect, ses
           label: 'Batch Prep Queue',
           icon: <FolderKanban className="w-4 h-4" />,
           badge: 'ZIP',
-          badgeTone: 'bg-[#5856D6]/15 text-[#5856D6] dark:text-[#7D7AFF]',
+          badgeTone: 'pp-badge-neutral',
         },
       ],
     },

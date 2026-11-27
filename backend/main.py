@@ -16,11 +16,17 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 
+from .engines.adapt_engine import (
+    build_biological_assembly,
+    lookup_rcsb_entry_ligands,
+    md5_hex,
+    rebuild_single_gap,
+)
 from .engines.analysis_engine import (
     analyze_membrane_and_interactions,
     compute_structural_diff,
@@ -46,6 +52,7 @@ from .engines.export_engine import (
     estimate_solvation_system,
     generate_markdown_report,
     generate_pqr,
+    generate_protonated_receptor_pdb,
     generate_receptor_pdbqt,
     generate_vina_config,
     run_gromacs_preflight_test,
@@ -104,6 +111,8 @@ from .models import (
     NormalizeFieldsRequest,
     PdbFixerOptions,
     PropkaOptions,
+    RcsbLigandLookupRequest,
+    RebuildGapRequest,
     RegularizeZoneRequest,
     RenameChainsRequest,
     RenameFileRequest,
@@ -112,13 +121,20 @@ from .models import (
     ReorderChainsRequest,
     ResidueTarget,
     RotamerApplyRequest,
+    SwitchAssemblyRequest,
+    UpdateDockingPrefsRequest,
+    VerifyProvenanceRequest,
 )
-from .session_manager import STORE
+from .session_manager import STORE, _default_docking_prefs
+import time
+import threading
+
+_LAST_ACTIVITY_TS = time.time()
 
 app = FastAPI(
     title="PDBPrep Studio API",
     version="2.0.0",
-    description="Deep Protein Preparation, PDBFixer, PROPKA 3 & COOT Crystallographic Workbench",
+    description="Deep Protein Preparation, PDBFixer, PROPKA 3, COOT & ADapt-Parity Docking Workbench",
 )
 
 app.add_middleware(
@@ -128,6 +144,70 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def cluster_security_and_basepath_middleware(request: Request, call_next):
+    """
+    Optional cluster/SSH/embed middleware:
+    - PANDAPROTEIN_BASE_PATH: strips reverse-proxy prefix (e.g. /pandaprotein) transparently
+    - PANDAPROTEIN_TOKEN: enforces random session token (?t=..., X-PandaProtein-Token, or cookie)
+    - Tracks last request timestamp for optional --idle-exit auto-shutdown
+    """
+    global _LAST_ACTIVITY_TS
+    _LAST_ACTIVITY_TS = time.time()
+
+    base_path = (os.environ.get("PANDAPROTEIN_BASE_PATH") or "").rstrip("/")
+    if base_path and request.scope.get("path", "").startswith(base_path):
+        stripped = request.scope["path"][len(base_path):] or "/"
+        request.scope["path"] = stripped
+
+    req_token = os.environ.get("PANDAPROTEIN_TOKEN") or ""
+    if req_token:
+        path = request.scope.get("path", "")
+        if path != "/api/health" and (path.startswith("/api/") or path in ("/", "/index.html")):
+            supplied = (
+                request.query_params.get("t")
+                or request.headers.get("X-PandaProtein-Token")
+                or request.cookies.get("pandaprotein_token")
+                or ""
+            )
+            if supplied != req_token:
+                return JSONResponse(
+                    status_code=403,
+                    content={"detail": "Forbidden: missing or invalid PandaProtein access token (?t=...)"},
+                )
+            response = await call_next(request)
+            if request.query_params.get("t") == req_token:
+                response.set_cookie("pandaprotein_token", req_token, httponly=False, samesite="lax")
+            return response
+
+    return await call_next(request)
+
+
+@app.get("/api/ping")
+def ping() -> Dict[str, Any]:
+    global _LAST_ACTIVITY_TS
+    _LAST_ACTIVITY_TS = time.time()
+    return {
+        "ok": True,
+        "idle_exit_minutes": float(os.environ.get("PANDAPROTEIN_IDLE_EXIT") or 0),
+        "token_protected": bool(os.environ.get("PANDAPROTEIN_TOKEN")),
+        "base_path": os.environ.get("PANDAPROTEIN_BASE_PATH") or "",
+    }
+
+
+@app.post("/api/shutdown")
+def shutdown_server() -> Dict[str, Any]:
+    if not (os.environ.get("PANDAPROTEIN_IDLE_EXIT") or os.environ.get("PANDAPROTEIN_ALLOW_QUIT")):
+        raise HTTPException(status_code=403, detail="Shutdown endpoint is only enabled when started with --idle-exit or --allow-quit")
+
+    def _delayed_exit():
+        time.sleep(0.35)
+        os._exit(0)
+
+    threading.Thread(target=_delayed_exit, daemon=True).start()
+    return {"status": "shutting_down"}
 
 
 def _get_session(sid: str):
@@ -964,10 +1044,48 @@ def export_structure(sid: str, req: ExportRequest) -> Response:
             headers={"Content-Disposition": f'attachment; filename="{stem}_prepared.gro"'},
         )
     if req.target == "pdbqt":
-        content = generate_receptor_pdbqt(sess.structure)
+        content = generate_receptor_pdbqt(
+            sess.structure,
+            docking_prefs=sess.docking_prefs,
+            remark_850_lines=sess.get_remark_850_lines(),
+        )
         return PlainTextResponse(
             content,
             headers={"Content-Disposition": f'attachment; filename="{stem}_receptor.pdbqt"'},
+        )
+    if req.target == "rec_h_pdb":
+        content = generate_protonated_receptor_pdb(
+            sess.structure,
+            docking_prefs=sess.docking_prefs,
+            remark_850_lines=sess.get_remark_850_lines(),
+            propka_data=state.get("propka"),
+        )
+        return PlainTextResponse(
+            content,
+            headers={"Content-Disposition": f'attachment; filename="{stem}_rec_H.pdb"'},
+        )
+    if req.target == "provenance_json":
+        rec_pdbqt = generate_receptor_pdbqt(
+            sess.structure,
+            docking_prefs=sess.docking_prefs,
+            remark_850_lines=sess.get_remark_850_lines(),
+        )
+        rec_h_pdb = generate_protonated_receptor_pdb(
+            sess.structure,
+            docking_prefs=sess.docking_prefs,
+            remark_850_lines=sess.get_remark_850_lines(),
+            propka_data=state.get("propka"),
+        )
+        prov = sess.get_provenance_record(
+            output_files={
+                f"{stem}_receptor.pdbqt": rec_pdbqt,
+                f"{stem}_rec_H.pdb": rec_h_pdb,
+            }
+        )
+        return Response(
+            content=json.dumps(prov, indent=2),
+            media_type="application/json",
+            headers={"Content-Disposition": f'attachment; filename="{stem}_provenance_session.json"'},
         )
     if req.target == "pqr":
         content = generate_pqr(sess.structure)
@@ -1049,6 +1167,169 @@ def test_gromacs_endpoint(sid: str, payload: Dict[str, Any]) -> Dict[str, Any]:
     )
     gmx_res = run_gromacs_preflight_test(sess.structure, force_field=ff, water_model=water)
     return {"gromacs": gmx_res, "solvation": solv}
+
+
+# ---------------------------------------------------------------------------
+# ADapt-Parity: Biological Assemblies, Per-Gap Rebuild, AD4 Prep Tree & Provenance
+# ---------------------------------------------------------------------------
+
+@app.post("/api/sessions/{sid}/assembly/switch")
+def switch_biological_assembly(sid: str, req: SwitchAssemblyRequest) -> Dict[str, Any]:
+    sess = _get_session(sid)
+    raw_st = sess.raw_input_structure if sess.raw_input_structure is not None else sess.structure
+    sess.push_undo(f"Switch Assembly -> {req.assembly_id}")
+    try:
+        new_st, info = build_biological_assembly(
+            raw_st,
+            assembly_id=req.assembly_id,
+            deduplicate_axial_ions=req.deduplicate_axial_ions,
+        )
+    except Exception as exc:
+        sess.undo_stack.pop()
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    sess.structure = new_st
+    sess.active_assembly_id = info["assembly_id"]
+    sess.symmetry_copy_chains = info["symmetry_copy_chains"]
+    sess.rebuilt_gaps = []
+    sess.refused_gaps = {}
+    sess.invalidate_cache()
+    sess.record_history(info["message"])
+    return {"result": info, "state": sess.get_full_state()}
+
+
+@app.post("/api/sessions/{sid}/pdbfixer/rebuild-gap")
+def rebuild_single_gap_endpoint(sid: str, req: RebuildGapRequest) -> Dict[str, Any]:
+    sess = _get_session(sid)
+    gap_id = f"{req.chain}:{req.start_resseq}-{req.end_resseq}"
+    sess.push_undo(f"Rebuild Gap {gap_id}")
+    try:
+        res = rebuild_single_gap(
+            sess.structure,
+            chain_id=req.chain,
+            start_resseq=req.start_resseq,
+            end_resseq=req.end_resseq,
+            sequence_3=req.sequence_3,
+            strict_geometry=req.strict_geometry,
+            max_seeds=req.max_seeds,
+        )
+    except Exception as exc:
+        sess.undo_stack.pop()
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    if res.get("refused"):
+        sess.undo_stack.pop()
+        sess.refused_gaps[gap_id] = res.get("reason", "Failed geometry validation")
+        sess.invalidate_cache()
+        sess.record_history(f"Gap {gap_id} refused: {sess.refused_gaps[gap_id]}")
+        return {"result": res, "state": sess.get_full_state()}
+
+    sess.refused_gaps.pop(gap_id, None)
+    sess.rebuilt_gaps = [g for g in sess.rebuilt_gaps if g.get("gap_id") != gap_id] + [res]
+    sess.invalidate_cache()
+    sess.record_history(res["message"])
+    return {"result": res, "state": sess.get_full_state()}
+
+
+@app.post("/api/sessions/{sid}/docking-prefs")
+def update_docking_prefs_endpoint(sid: str, req: UpdateDockingPrefsRequest) -> Dict[str, Any]:
+    sess = _get_session(sid)
+    if req.reset_all:
+        sess.docking_prefs = _default_docking_prefs()
+        sess.invalidate_cache()
+        sess.record_history("Reset all docking receptor/ligand/ion preferences to defaults")
+        return {"result": {"message": "Preferences reset to defaults"}, "state": sess.get_full_state()}
+
+    changes: List[str] = []
+    if req.residue_roles is not None:
+        for k, v in req.residue_roles.items():
+            if v in ("receptor", "ligand", "exclude"):
+                sess.docking_prefs.setdefault("residue_roles", {})[k] = v
+                changes.append(f"{k}={v}")
+    if req.chain_roles is not None:
+        for k, v in req.chain_roles.items():
+            if v in ("receptor", "exclude"):
+                sess.docking_prefs.setdefault("chain_roles", {})[k] = v
+                changes.append(f"chain {k}={v}")
+    if req.ion_charges is not None:
+        for k, q in req.ion_charges.items():
+            sess.docking_prefs.setdefault("ion_charges", {})[k] = round(float(q), 3)
+            changes.append(f"{k} charge={float(q):+.2f}")
+    if req.ion_substitutions is not None:
+        subs = sess.docking_prefs.setdefault("ion_substitutions", {})
+        for k, el in req.ion_substitutions.items():
+            if el is None or el == "" or el == "ORIGINAL":
+                subs.pop(k, None)
+                changes.append(f"{k} restored")
+            else:
+                subs[k] = el.upper()
+                changes.append(f"{k}->{el.upper()}")
+    if req.include_nucleic is not None:
+        sess.docking_prefs["include_nucleic"] = bool(req.include_nucleic)
+        changes.append(f"nucleic={'on' if req.include_nucleic else 'off'}")
+
+    sess.invalidate_cache()
+    msg = f"Updated docking prep: {', '.join(changes[:6])}" if changes else "No changes"
+    if changes:
+        sess.record_history(msg)
+    return {"result": {"message": msg}, "state": sess.get_full_state()}
+
+
+@app.post("/api/sessions/{sid}/rcsb-ligands")
+def lookup_rcsb_ligands_endpoint(sid: str, req: RcsbLigandLookupRequest) -> Dict[str, Any]:
+    sess = _get_session(sid)
+    pid = (req.pdb_id or Path(sess.name).stem).strip().upper()
+    info = lookup_rcsb_entry_ligands(pid, force_refresh=req.force_refresh)
+    sess.rcsb_ligands = info
+    sess.invalidate_cache()
+    if info.get("source") == "rcsb_data_api":
+        sess.record_history(f"Verified RCSB CCD ligands for {info['pdb_id']} ({len(info.get('ligands', []))} LOI component(s))")
+    return {"result": info, "state": sess.get_full_state()}
+
+
+@app.get("/api/sessions/{sid}/provenance")
+def get_session_provenance(sid: str) -> Dict[str, Any]:
+    sess = _get_session(sid)
+    stem = Path(sess.name).stem
+    state = sess.get_full_state()
+    rec_pdbqt = generate_receptor_pdbqt(
+        sess.structure,
+        docking_prefs=sess.docking_prefs,
+        remark_850_lines=sess.get_remark_850_lines(),
+    )
+    rec_h_pdb = generate_protonated_receptor_pdb(
+        sess.structure,
+        docking_prefs=sess.docking_prefs,
+        remark_850_lines=sess.get_remark_850_lines(),
+        propka_data=state.get("propka"),
+    )
+    return sess.get_provenance_record(
+        output_files={
+            f"{stem}_receptor.pdbqt": rec_pdbqt,
+            f"{stem}_rec_H.pdb": rec_h_pdb,
+        }
+    )
+
+
+@app.post("/api/sessions/{sid}/provenance/verify")
+def verify_session_provenance(sid: str, req: VerifyProvenanceRequest) -> Dict[str, Any]:
+    sess = _get_session(sid)
+    state = sess.get_full_state()
+    prov = req.provenance
+    input_match = (prov.get("input_md5") == sess.input_md5)
+    cur_md5 = md5_hex(state["pdb_text"])
+    current_match = (prov.get("current_structure_md5") == cur_md5)
+    asm_match = ((prov.get("assembly") or {}).get("active_id") == sess.active_assembly_id)
+    return {
+        "verified": bool(input_match and current_match),
+        "input_md5_match": input_match,
+        "current_structure_md5_match": current_match,
+        "assembly_match": asm_match,
+        "expected_input_md5": prov.get("input_md5"),
+        "actual_input_md5": sess.input_md5,
+        "expected_current_md5": prov.get("current_structure_md5"),
+        "actual_current_md5": cur_md5,
+    }
 
 
 # Mount built frontend static assets (prefers live dev frontend/dist, falls back to packaged backend/static)

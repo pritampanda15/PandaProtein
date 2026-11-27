@@ -1,5 +1,6 @@
 export type NavTab =
   | 'overview'
+  | 'prep-tree'
   | 'coot'
   | 'chains'
   | 'pdbfixer'
@@ -472,11 +473,225 @@ export interface GromacsTestResult {
   log?: string;
 }
 
+export interface BiologicalAssembly {
+  id: string;
+  name: string;
+  label: string;
+  oligomeric_count: number;
+  chains: string[];
+  operator_count: number;
+  has_symmetry_copies: boolean;
+  is_active: boolean;
+  description: string;
+}
+
+export interface MissingGapMarker {
+  id: string;
+  chain: string;
+  start_resseq: number;
+  start_resname: string;
+  end_resseq: number;
+  end_resname: string;
+  missing_count: number;
+  gap_distance_A: number;
+  sequence_3: string[];
+  sequence_1: string;
+  source: string;
+  anchor_c_xyz: [number, number, number];
+  anchor_n_xyz: [number, number, number];
+  midpoint_xyz: [number, number, number];
+  can_rebuild: boolean;
+  physically_closable: boolean;
+  status: 'unbuilt' | 'rebuilt' | 'refused';
+  refusal_reason?: string | null;
+  label: string;
+}
+
+export interface MissingTerminusMarker {
+  id: string;
+  chain: string;
+  terminus: 'N' | 'C';
+  anchor_resseq: number;
+  anchor_resname: string;
+  missing_count: number;
+  sequence_3: string[];
+  sequence_1: string;
+  range_label: string;
+  anchor_xyz: [number, number, number];
+  marker_xyz: [number, number, number];
+  label: string;
+}
+
+export interface MissingRegionsData {
+  internal_gaps: MissingGapMarker[];
+  missing_termini: MissingTerminusMarker[];
+  rebuilt_gaps: Array<{
+    gap_id: string;
+    chain: string;
+    start_resseq: number;
+    end_resseq: number;
+    sequence_1: string;
+    seed: number;
+    rebuilt_keys: string[];
+    remark_850?: string;
+    geometry?: {
+      passed: boolean;
+      cn_min_A: number;
+      cn_max_A: number;
+      caca_min_A: number;
+      caca_max_A: number;
+      min_abs_omega_deg: number;
+      min_contact_A: number;
+    };
+  }>;
+}
+
+export interface DockingPrefs {
+  residue_roles: Record<string, 'receptor' | 'ligand' | 'exclude'>;
+  chain_roles: Record<string, 'receptor' | 'exclude'>;
+  ion_charges: Record<string, number>;
+  ion_substitutions: Record<string, string>;
+  include_nucleic: boolean;
+}
+
+export interface PrepTreeIonItem {
+  key: string;
+  chain: string;
+  resseq: number;
+  icode: string;
+  resname: string;
+  element: string;
+  effective_element: string;
+  substituted_element?: string | null;
+  ad4_supported: boolean;
+  default_charge: number;
+  charge: number;
+  role: 'receptor' | 'ligand' | 'exclude';
+  center: [number, number, number];
+}
+
+export interface PrepTreeHeterogenItem {
+  key: string;
+  chain: string;
+  resseq: number;
+  icode: string;
+  resname: string;
+  rcsb_name?: string | null;
+  heavy_atoms: number;
+  ad4_supported: boolean;
+  unsupported_elements: string[];
+  role: 'receptor' | 'ligand' | 'exclude';
+  center: [number, number, number];
+}
+
+export interface PrepTreeChainNode {
+  chain: string;
+  is_symmetry_copy: boolean;
+  role: 'receptor' | 'exclude';
+  protein_count: number;
+  nucleic_count: number;
+  nucleic_included: boolean;
+  missing_gaps: MissingGapMarker[];
+  missing_termini: MissingTerminusMarker[];
+  altlocs: Array<{
+    key: string;
+    chain: string;
+    resseq: number;
+    icode: string;
+    resname: string;
+    center: [number, number, number];
+    conformers: Array<{ id: string; occ: number; b_factor: number }>;
+  }>;
+  incomplete_sidechains: Array<{
+    key: string;
+    chain: string;
+    resseq: number;
+    icode: string;
+    resname: string;
+    missing: string[];
+    center: [number, number, number];
+  }>;
+  modified: Array<{
+    key: string;
+    chain: string;
+    resseq: number;
+    icode: string;
+    resname: string;
+    replacement: string;
+    center: [number, number, number];
+    role: string;
+  }>;
+  metals_ions: PrepTreeIonItem[];
+  unknown_atom_types: Array<{
+    key: string;
+    chain: string;
+    resseq: number;
+    icode: string;
+    resname: string;
+    unsupported_elements: string[];
+    is_ion: boolean;
+    substituted_element?: string | null;
+    role: string;
+    center: [number, number, number];
+  }>;
+  ligands: PrepTreeHeterogenItem[];
+  cofactors: PrepTreeHeterogenItem[];
+  additives: PrepTreeHeterogenItem[];
+  waters: Array<{
+    key: string;
+    chain: string;
+    resseq: number;
+    icode: string;
+    resname: string;
+    role: 'receptor' | 'ligand' | 'exclude';
+    center: [number, number, number];
+  }>;
+}
+
+export interface PrepTreeData {
+  chains: PrepTreeChainNode[];
+  summary: {
+    protein_chains: number;
+    nucleic_residues: number;
+    altloc_residues: number;
+    incomplete_sidechains: number;
+    modified_residues: number;
+    metals_ions: number;
+    unsupported_ad4_residues: number;
+    ligands: number;
+    cofactors: number;
+    additives: number;
+    waters: number;
+    internal_gaps: number;
+    missing_termini: number;
+  };
+  ad4_substitutes: Array<{
+    element: string;
+    ad4_type: string;
+    default_charge: number;
+    label: string;
+  }>;
+  rcsb_source: string;
+  rcsb_pdb_id?: string | null;
+}
+
+export interface ProvenanceVerifyResult {
+  verified: boolean;
+  input_md5_match: boolean;
+  current_structure_md5_match: boolean;
+  assembly_match: boolean;
+  expected_input_md5?: string;
+  actual_input_md5?: string;
+  expected_current_md5?: string;
+  actual_current_md5?: string;
+}
+
 export interface StructureSessionState {
   session_id: string;
   name: string;
   source: string;
   pdb_text: string;
+  input_md5?: string;
   can_undo: boolean;
   can_redo: boolean;
   undo_count: number;
@@ -490,6 +705,13 @@ export interface StructureSessionState {
   ligands_info: LigandsInfo;
   pockets?: PocketItem[];
   sequence_chains?: Record<string, SequenceResidue[]>;
+  assemblies?: BiologicalAssembly[];
+  active_assembly_id?: string;
+  symmetry_copy_chains?: string[];
+  missing_regions?: MissingRegionsData;
+  prep_tree?: PrepTreeData;
+  docking_prefs?: DockingPrefs;
+  rebuilt_keys?: string[];
   overlays?: {
     disulfides: OverlayBond[];
     metal_bonds: OverlayBond[];

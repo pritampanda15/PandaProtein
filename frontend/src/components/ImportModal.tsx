@@ -131,7 +131,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({
 
           <div className="p-3.5 rounded-2xl bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.05] dark:border-white/[0.07] space-y-2.5">
             <div className="flex items-center gap-1.5 text-[12px] font-semibold">
-              <Dna className="w-3.5 h-3.5 text-[#AF52DE]" />
+              <Dna className="w-3.5 h-3.5 text-[#007AFF]" />
               <span>Fetch AlphaFold DB</span>
             </div>
             <div className="flex gap-1.5">
@@ -144,7 +144,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({
               <button
                 disabled={busy || uniprotId.trim().length < 4}
                 onClick={() => onFetchAlphaFold(uniprotId.trim())}
-                className="apple-btn-primary shrink-0 !bg-[#AF52DE] hover:!bg-[#933CC2]"
+                className="apple-btn-primary shrink-0"
               >
                 Fetch
               </button>
@@ -156,7 +156,7 @@ export const ImportModal: React.FC<ImportModalProps> = ({
         </div>
 
         {/* Built-in Showcase */}
-        <div className="flex items-center justify-between p-3.5 rounded-2xl bg-gradient-to-r from-[#007AFF]/10 via-[#5856D6]/10 to-[#AF52DE]/10 border border-[#007AFF]/20">
+        <div className="flex items-center justify-between p-3.5 rounded-2xl bg-[#007AFF]/[0.06] border border-[#007AFF]/20">
           <div>
             <div className="text-[13px] font-semibold flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-[#007AFF]" />

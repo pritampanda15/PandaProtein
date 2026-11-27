@@ -357,7 +357,7 @@ export const CootWorkbench: React.FC<CootWorkbenchProps> = ({
                 onClick={() => setShowMutateGrid((v) => !v)}
                 className={`apple-btn-secondary justify-start ${showMutateGrid ? '!bg-[#007AFF]/15 !text-[#007AFF]' : ''}`}
               >
-                <Dna className="w-3.5 h-3.5 text-[#AF52DE]" />
+                <Dna className="w-3.5 h-3.5 text-[#007AFF]" />
                 <span>Mutate Residue</span>
               </button>
 
@@ -374,7 +374,7 @@ export const CootWorkbench: React.FC<CootWorkbenchProps> = ({
                 }
                 className="apple-btn-secondary justify-start"
               >
-                <FlipHorizontal2 className="w-3.5 h-3.5 text-[#5856D6]" />
+                <FlipHorizontal2 className="w-3.5 h-3.5 text-[#007AFF]" />
                 <span>180° Pepflip</span>
               </button>
 
@@ -434,8 +434,8 @@ export const CootWorkbench: React.FC<CootWorkbenchProps> = ({
 
           {/* Point Mutation Grid (collapsible) */}
           {showMutateGrid && (
-            <div className="p-3 rounded-2xl bg-[#AF52DE]/8 border border-[#AF52DE]/20 space-y-2">
-              <div className="text-[12px] font-semibold text-[#8944AB] dark:text-[#BF5AF2]">
+            <div className="p-3 rounded-2xl bg-[#007AFF]/[0.05] border border-[#007AFF]/20 space-y-2">
+              <div className="text-[12px] font-semibold text-[#007AFF] dark:text-[#0A84FF]">
                 Select Target Amino Acid (Mutate & Auto-Fit Clash-Free Rotamer)
               </div>
               <div className="grid grid-cols-5 sm:grid-cols-10 gap-1.5">
@@ -456,8 +456,8 @@ export const CootWorkbench: React.FC<CootWorkbenchProps> = ({
                     }}
                     className={`py-1.5 rounded-lg text-[11.5px] font-mono font-semibold transition ${
                       aa === activeRes.std_resname
-                        ? 'bg-[#AF52DE] text-white'
-                        : 'bg-white/80 dark:bg-white/10 hover:bg-[#AF52DE]/20'
+                        ? 'bg-[#007AFF] text-white'
+                        : 'bg-white/80 dark:bg-white/10 hover:bg-[#007AFF]/15'
                     }`}
                   >
                     {aa}

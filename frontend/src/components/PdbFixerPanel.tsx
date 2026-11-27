@@ -185,12 +185,12 @@ export const PdbFixerPanel: React.FC<PdbFixerPanelProps> = ({
               <button
                 key={`ml-${i}`}
                 onClick={() => onSelectResidue({ chain: ml.chain, resseq: ml.start_resseq, icode: '' }, true)}
-                className="w-full flex items-center justify-between px-3 py-1.5 rounded-xl bg-[#AF52DE]/10 hover:bg-[#AF52DE]/18 transition text-left"
+                className="w-full flex items-center justify-between px-3 py-1.5 rounded-xl bg-[#007AFF]/[0.07] hover:bg-[#007AFF]/[0.13] transition text-left"
               >
                 <span className="font-mono font-semibold">
                   Loop Break: Chain {ml.chain} ({ml.start_resseq} → {ml.end_resseq})
                 </span>
-                <span className="text-[#8944AB] dark:text-[#BF5AF2]">
+                <span className="text-[#007AFF] dark:text-[#0A84FF]">
                   {ml.missing_count} missing ({ml.sequence.join('-') || `${ml.gap_distance_A} Å gap`})
                 </span>
               </button>

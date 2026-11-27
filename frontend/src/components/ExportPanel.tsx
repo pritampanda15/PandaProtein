@@ -102,7 +102,7 @@ export const ExportPanel: React.FC<ExportPanelProps> = ({ session, busy, onSetBu
       </div>
 
       {/* Primary Hero Export: Complete Production Bundle */}
-      <div className="apple-card p-5 bg-gradient-to-br from-[#007AFF]/10 via-[#5856D6]/5 to-transparent border-[#007AFF]/25 space-y-4">
+      <div className="apple-card p-5 bg-[#007AFF]/[0.04] dark:bg-[#0A84FF]/[0.06] border-[#007AFF]/20 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="flex items-center gap-2 text-[15px] font-semibold">
@@ -261,12 +261,14 @@ export const ExportPanel: React.FC<ExportPanelProps> = ({ session, busy, onSetBu
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
         {[
           { target: 'pdb', file: 'prepared.pdb', title: 'Prepared PDB', sub: 'Cleaned coordinates + H', icon: <FileCode2 className="w-4 h-4 text-[#007AFF]" /> },
-          { target: 'gro', file: 'prepared.gro', title: 'GROMACS .gro', sub: 'nm coordinates + box', icon: <FileCode2 className="w-4 h-4 text-[#34C759]" /> },
-          { target: 'mmcif', file: 'prepared.cif', title: 'Prepared mmCIF', sub: 'PDBx / Crystallographic', icon: <FileCode2 className="w-4 h-4 text-[#5856D6]" /> },
-          { target: 'pdbqt', file: 'receptor.pdbqt', title: 'Receptor PDBQT', sub: 'AutoDock Vina / GNINA', icon: <FileCode2 className="w-4 h-4 text-[#AF52DE]" /> },
-          { target: 'pqr', file: 'prepared.pqr', title: 'APBS PQR', sub: 'Charges + Bondi Radii', icon: <FileCode2 className="w-4 h-4 text-[#5AC8FA]" /> },
-          { target: 'report_md', file: 'report.md', title: 'QA Report (.md)', sub: 'Publication Summary', icon: <FileText className="w-4 h-4 text-[#FF9500]" /> },
-          { target: 'report_json', file: 'audit.json', title: 'Full Audit (.json)', sub: 'Machine-readable metrics', icon: <FileText className="w-4 h-4 text-[#86868B]" /> },
+          { target: 'gro', file: 'prepared.gro', title: 'GROMACS .gro', sub: 'nm coordinates + box', icon: <FileCode2 className="w-4 h-4 text-[#007AFF]" /> },
+          { target: 'mmcif', file: 'prepared.cif', title: 'Prepared mmCIF', sub: 'PDBx / Crystallographic', icon: <FileCode2 className="w-4 h-4 text-[#007AFF]" /> },
+          { target: 'pdbqt', file: 'receptor.pdbqt', title: 'Receptor PDBQT', sub: 'Vina 1.2 + REMARK 850', icon: <FileCode2 className="w-4 h-4 text-[#007AFF]" /> },
+          { target: 'rec_h_pdb', file: 'rec_H.pdb', title: 'Protonated _rec_H.pdb', sub: 'All H + PROPKA USER MOD', icon: <FileCode2 className="w-4 h-4 text-[#007AFF]" /> },
+          { target: 'provenance_json', file: 'provenance_session.json', title: 'Provenance JSON', sub: 'MD5 / SHA-256 audit log', icon: <FileText className="w-4 h-4 text-[#6E6E73] dark:text-[#98989D]" /> },
+          { target: 'pqr', file: 'prepared.pqr', title: 'APBS PQR', sub: 'Charges + Bondi Radii', icon: <FileCode2 className="w-4 h-4 text-[#007AFF]" /> },
+          { target: 'report_md', file: 'report.md', title: 'QA Report (.md)', sub: 'Publication Summary', icon: <FileText className="w-4 h-4 text-[#6E6E73] dark:text-[#98989D]" /> },
+          { target: 'report_json', file: 'audit.json', title: 'Full Audit (.json)', sub: 'Machine-readable metrics', icon: <FileText className="w-4 h-4 text-[#6E6E73] dark:text-[#98989D]" /> },
         ].map((item) => (
           <button
             key={item.target}

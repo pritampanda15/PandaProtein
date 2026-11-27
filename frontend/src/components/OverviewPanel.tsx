@@ -154,7 +154,7 @@ export const OverviewPanel: React.FC<OverviewPanelProps> = ({
         )}
       </div>
 
-      {/* Three Apple Activity-Style Readiness Rings */}
+      {/* Three Apple Activity-Style Readiness Rings — Unified Brand Accent */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
         <ScoreRing
           label="MD Simulation"
@@ -166,20 +166,20 @@ export const OverviewPanel: React.FC<OverviewPanelProps> = ({
         <ScoreRing
           label="Molecular Docking"
           score={readiness.docking.score}
-          subtitle="AutoDock Vina / GNINA / Smina"
-          color="#AF52DE"
-          onClick={() => onNavigate('export')}
+          subtitle="AutoDock Vina / GNINA / PandaX"
+          color="#007AFF"
+          onClick={() => onNavigate('prep-tree')}
         />
         <ScoreRing
           label="COOT Quality"
           score={readiness.crystallographic.score}
           subtitle="Ramachandran · Rotamers · Clashes"
-          color="#34C759"
+          color="#007AFF"
           onClick={() => onNavigate('validation')}
         />
       </div>
 
-      {/* One-Click Deep Preparation Presets */}
+      {/* One-Click Deep Preparation Presets — Unified Monochrome Surface + Single Accent */}
       <div className="apple-card p-4 space-y-3">
         <div className="flex items-center justify-between">
           <div>
@@ -194,10 +194,10 @@ export const OverviewPanel: React.FC<OverviewPanelProps> = ({
           <button
             disabled={busy}
             onClick={() => onRunPreset('md_production')}
-            className="p-3.5 rounded-2xl text-left bg-gradient-to-br from-[#007AFF]/10 to-[#5856D6]/5 border border-[#007AFF]/20 hover:border-[#007AFF]/45 transition group"
+            className="p-3.5 rounded-2xl text-left bg-black/[0.025] dark:bg-white/[0.035] border border-black/[0.07] dark:border-white/[0.08] hover:border-[#007AFF]/50 hover:bg-[#007AFF]/[0.04] transition group"
           >
-            <div className="flex items-center gap-2 text-[#007AFF] dark:text-[#0A84FF] font-semibold text-[13px]">
-              <Cpu className="w-4 h-4" />
+            <div className="flex items-center gap-2 text-[#1D1D1F] dark:text-[#F5F5F7] group-hover:text-[#007AFF] dark:group-hover:text-[#0A84FF] font-semibold text-[13px] transition-colors">
+              <Cpu className="w-4 h-4 text-[#007AFF] dark:text-[#0A84FF]" />
               <span>MD Production Prep</span>
             </div>
             <p className="text-[11.5px] text-[#6E6E73] dark:text-[#A1A1A6] mt-1 leading-relaxed">
@@ -208,28 +208,28 @@ export const OverviewPanel: React.FC<OverviewPanelProps> = ({
           <button
             disabled={busy}
             onClick={() => onRunPreset('docking_receptor')}
-            className="p-3.5 rounded-2xl text-left bg-gradient-to-br from-[#AF52DE]/10 to-[#FF2D55]/5 border border-[#AF52DE]/20 hover:border-[#AF52DE]/45 transition group"
+            className="p-3.5 rounded-2xl text-left bg-black/[0.025] dark:bg-white/[0.035] border border-black/[0.07] dark:border-white/[0.08] hover:border-[#007AFF]/50 hover:bg-[#007AFF]/[0.04] transition group"
           >
-            <div className="flex items-center gap-2 text-[#AF52DE] dark:text-[#BF5AF2] font-semibold text-[13px]">
-              <Crosshair className="w-4 h-4" />
+            <div className="flex items-center gap-2 text-[#1D1D1F] dark:text-[#F5F5F7] group-hover:text-[#007AFF] dark:group-hover:text-[#0A84FF] font-semibold text-[13px] transition-colors">
+              <Crosshair className="w-4 h-4 text-[#007AFF] dark:text-[#0A84FF]" />
               <span>Docking Receptor Prep</span>
             </div>
             <p className="text-[11.5px] text-[#6E6E73] dark:text-[#A1A1A6] mt-1 leading-relaxed">
-              Cleans pocket buffers, resolves AltLocs & side-chain clashes, optimizes NQH H-bonds & polar H for PDBQT.
+              Cleans pocket buffers, resolves AltLocs &amp; side-chain clashes, optimizes NQH H-bonds &amp; polar H for PDBQT.
             </p>
           </button>
 
           <button
             disabled={busy}
             onClick={() => onRunPreset('crystallographic_polish')}
-            className="p-3.5 rounded-2xl text-left bg-gradient-to-br from-[#34C759]/10 to-[#5AC8FA]/5 border border-[#34C759]/20 hover:border-[#34C759]/45 transition group"
+            className="p-3.5 rounded-2xl text-left bg-black/[0.025] dark:bg-white/[0.035] border border-black/[0.07] dark:border-white/[0.08] hover:border-[#007AFF]/50 hover:bg-[#007AFF]/[0.04] transition group"
           >
-            <div className="flex items-center gap-2 text-[#1B8A38] dark:text-[#30D158] font-semibold text-[13px]">
-              <Microscope className="w-4 h-4" />
+            <div className="flex items-center gap-2 text-[#1D1D1F] dark:text-[#F5F5F7] group-hover:text-[#007AFF] dark:group-hover:text-[#0A84FF] font-semibold text-[13px] transition-colors">
+              <Microscope className="w-4 h-4 text-[#007AFF] dark:text-[#0A84FF]" />
               <span>COOT Auto-Polish</span>
             </div>
             <p className="text-[11.5px] text-[#6E6E73] dark:text-[#A1A1A6] mt-1 leading-relaxed">
-              Fixes cis non-Pro peptides, chirality, NQH flips, auto-fits rotamers & regularizes outlier zones only.
+              Fixes cis non-Pro peptides, chirality, NQH flips, auto-fits rotamers &amp; regularizes outlier zones only.
             </p>
           </button>
         </div>

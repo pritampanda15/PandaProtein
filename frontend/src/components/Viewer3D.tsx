@@ -92,6 +92,8 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({
   const [showDockingBox, setShowDockingBox] = useState(false);
   const [showPockets, setShowPockets] = useState(false);
   const [showInteractions, setShowInteractions] = useState(true);
+  const [showGaps, setShowGaps] = useState(true);
+  const [tintSymCopies, setTintSymCopies] = useState(true);
   const [showLegend, setShowLegend] = useState(false);
   const [measureMode, setMeasureMode] = useState(false);
   const [pendingAtom, setPendingAtom] = useState<PendingMeasureAtom | null>(null);
@@ -413,6 +415,88 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({
           radius: 0.07,
           dashed: true,
           color: '#007AFF',
+        });
+      }
+    }
+
+    // Highlight Rebuilt Loops with Magenta Carbons (ADapt convention)
+    if (session.rebuilt_keys && session.rebuilt_keys.length > 0) {
+      for (const rk of session.rebuilt_keys) {
+        const [rc, rnStr] = rk.split(':');
+        const rnum = parseInt(rnStr, 10);
+        if (rc && !Number.isNaN(rnum)) {
+          viewer.addStyle(
+            { chain: rc, resi: rnum, hetflag: false },
+            { stick: { radius: 0.22, colorscheme: 'magentaCarbon' } }
+          );
+        }
+      }
+    }
+
+    // Tint Symmetry-Generated Biological Assembly Copies slightly translucent when active
+    if (
+      tintSymCopies &&
+      (!highlightedChains || highlightedChains.ids.length === 0) &&
+      session.symmetry_copy_chains &&
+      session.symmetry_copy_chains.length > 0
+    ) {
+      viewer.setStyle(
+        { chain: session.symmetry_copy_chains, hetflag: false },
+        { cartoon: { color: darkMode ? '#98989D' : '#8E8E93', opacity: 0.55, thickness: 0.35 } }
+      );
+    }
+
+    // Render 3D Missing Residue Markers (REMARK 465 Internal Gaps: dashed orange line + midpoint sphere; Missing Termini: amber sphere 3 A past end)
+    if (showGaps && session.missing_regions) {
+      for (const gap of session.missing_regions.internal_gaps) {
+        if (gap.status === 'rebuilt') continue;
+        viewer.addCylinder({
+          start: { x: gap.anchor_c_xyz[0], y: gap.anchor_c_xyz[1], z: gap.anchor_c_xyz[2] },
+          end: { x: gap.anchor_n_xyz[0], y: gap.anchor_n_xyz[1], z: gap.anchor_n_xyz[2] },
+          radius: 0.14,
+          dashed: true,
+          dashLength: 0.35,
+          gapLength: 0.25,
+          color: '#FF9500',
+        });
+        viewer.addSphere({
+          center: { x: gap.midpoint_xyz[0], y: gap.midpoint_xyz[1], z: gap.midpoint_xyz[2] },
+          radius: 0.65,
+          color: '#FF9500',
+          opacity: 0.85,
+        });
+        viewer.addLabel(`Gap ${gap.chain}:${gap.sequence_1 || `${gap.missing_count}aa`}`, {
+          position: { x: gap.midpoint_xyz[0], y: gap.midpoint_xyz[1], z: gap.midpoint_xyz[2] },
+          font: '-apple-system, sans-serif',
+          fontSize: 10.5,
+          fontColor: '#FFFFFF',
+          backgroundColor: 'rgba(255, 149, 0, 0.9)',
+          borderRadius: 5,
+          inFront: true,
+        });
+      }
+      for (const term of session.missing_regions.missing_termini) {
+        viewer.addCylinder({
+          start: { x: term.anchor_xyz[0], y: term.anchor_xyz[1], z: term.anchor_xyz[2] },
+          end: { x: term.marker_xyz[0], y: term.marker_xyz[1], z: term.marker_xyz[2] },
+          radius: 0.09,
+          dashed: true,
+          color: '#FFCC00',
+        });
+        viewer.addSphere({
+          center: { x: term.marker_xyz[0], y: term.marker_xyz[1], z: term.marker_xyz[2] },
+          radius: 0.55,
+          color: '#FFCC00',
+          opacity: 0.8,
+        });
+        viewer.addLabel(`${term.chain} ${term.terminus}-term (-${term.missing_count})`, {
+          position: { x: term.marker_xyz[0], y: term.marker_xyz[1], z: term.marker_xyz[2] },
+          font: '-apple-system, sans-serif',
+          fontSize: 10,
+          fontColor: '#1D1D1F',
+          backgroundColor: 'rgba(255, 204, 0, 0.9)',
+          borderRadius: 5,
+          inFront: true,
         });
       }
     }
@@ -842,6 +926,11 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({
     showDockingBox,
     showPockets,
     showInteractions,
+    showGaps,
+    tintSymCopies,
+    session.active_assembly_id,
+    (session.rebuilt_keys || []).join(','),
+    (session.symmetry_copy_chains || []).join(','),
     selectedResidue?.chain,
     selectedResidue?.resseq,
     highlightedChains?.tone,
@@ -964,14 +1053,12 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({
           </select>
         </div>
 
-        {/* Right Utility Controls */}
-        <div className="flex items-center gap-1 pointer-events-auto apple-glass rounded-xl p-1 shadow-apple-sm">
+        {/* Right Utility Controls — Unified 1-Accent (Apple Scientific Blue) HUD */}
+        <div className="flex items-center gap-0.5 pointer-events-auto apple-glass rounded-xl p-1 shadow-apple-sm">
           <button
             onClick={() => setShowClashes((v) => !v)}
             title="Toggle 3D Steric Clash Spheres"
-            className={`px-2 py-1 rounded-lg text-[11px] font-medium flex items-center gap-1 transition ${
-              showClashes ? 'bg-[#FF3B30]/15 text-[#D70015] dark:text-[#FF453A]' : 'text-[#86868B]'
-            }`}
+            className={showClashes ? 'pp-hud-btn-active' : 'pp-hud-btn'}
           >
             <Flame className="w-3.5 h-3.5" />
             <span>Clashes</span>
@@ -979,9 +1066,7 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({
           <button
             onClick={() => setShowDockingBox((v) => !v)}
             title="Toggle AutoDock Vina Grid Box"
-            className={`px-2 py-1 rounded-lg text-[11px] font-medium flex items-center gap-1 transition ${
-              showDockingBox ? 'bg-[#007AFF]/15 text-[#007AFF] dark:text-[#0A84FF]' : 'text-[#86868B]'
-            }`}
+            className={showDockingBox ? 'pp-hud-btn-active' : 'pp-hud-btn'}
           >
             <Box className="w-3.5 h-3.5" />
             <span>Grid</span>
@@ -989,21 +1074,36 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({
           <button
             onClick={() => setShowPockets((v) => !v)}
             title="Toggle 3D Detected Druggable Binding Pockets"
-            className={`px-2 py-1 rounded-lg text-[11px] font-medium transition ${
-              showPockets ? 'bg-[#5856D6]/20 text-[#5856D6] dark:text-[#7D7AFF]' : 'text-[#86868B]'
-            }`}
+            className={showPockets ? 'pp-hud-btn-active' : 'pp-hud-btn'}
           >
             Pockets
           </button>
           <button
             onClick={() => setShowInteractions((v) => !v)}
             title="Toggle Disulfide, Metal & H-Bond Cylinders"
-            className={`px-2 py-1 rounded-lg text-[11px] font-medium transition ${
-              showInteractions ? 'bg-[#FFCC00]/25 text-[#9E7700] dark:text-[#FFD60A]' : 'text-[#86868B]'
-            }`}
+            className={showInteractions ? 'pp-hud-btn-active' : 'pp-hud-btn'}
           >
             S–S/HB
           </button>
+          {((session.missing_regions?.internal_gaps?.length || 0) +
+            (session.missing_regions?.missing_termini?.length || 0)) > 0 && (
+            <button
+              onClick={() => setShowGaps((v) => !v)}
+              title="Toggle REMARK 465 Missing Gap & Terminus Markers"
+              className={showGaps ? 'pp-hud-btn-active' : 'pp-hud-btn'}
+            >
+              Gaps
+            </button>
+          )}
+          {(session.symmetry_copy_chains?.length || 0) > 0 && (
+            <button
+              onClick={() => setTintSymCopies((v) => !v)}
+              title="Tint Biological Assembly Symmetry Copies Translucent"
+              className={tintSymCopies ? 'pp-hud-btn-active' : 'pp-hud-btn'}
+            >
+              Sym Tint
+            </button>
+          )}
           <button
             onClick={() => setShowHydrogens((v) => !v)}
             title={
@@ -1011,22 +1111,14 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({
                 ? '0 hydrogens in structure — run PROPKA or Deep Prep to build hydrogens'
                 : `Toggle ${session.metadata.counts.hydrogens} Hydrogens`
             }
-            className={`px-2 py-1 rounded-lg text-[11px] font-medium transition ${
-              showHydrogens && session.metadata.counts.hydrogens > 0
-                ? 'bg-[#34C759]/15 text-[#1B8A38] dark:text-[#30D158]'
-                : showHydrogens
-                ? 'bg-[#FF9500]/15 text-[#B26200] dark:text-[#FF9F0A]'
-                : 'text-[#86868B]'
-            }`}
+            className={showHydrogens ? 'pp-hud-btn-active' : 'pp-hud-btn'}
           >
             H ({session.metadata.counts.hydrogens})
           </button>
           <button
             onClick={() => setShowWaters((v) => !v)}
             title="Toggle Waters"
-            className={`px-2 py-1 rounded-lg text-[11px] font-medium transition ${
-              showWaters ? 'bg-[#5AC8FA]/20 text-[#0071A4] dark:text-[#5AC8FA]' : 'text-[#86868B]'
-            }`}
+            className={showWaters ? 'pp-hud-btn-active' : 'pp-hud-btn'}
           >
             H₂O
           </button>
@@ -1038,13 +1130,13 @@ export const Viewer3D: React.FC<Viewer3DProps> = ({
               });
             }}
             title="2-Click 3D Distance Ruler (click any two atoms to measure Å)"
-            className={`px-2 py-1 rounded-lg text-[11px] font-medium flex items-center gap-1 transition ${
+            className={
               measureMode
-                ? 'bg-[#FF9500] text-white shadow-sm'
+                ? 'px-2 py-1 rounded-lg text-[11px] font-medium flex items-center gap-1 transition bg-[#007AFF] text-white shadow-sm'
                 : measurements.length > 0
-                ? 'bg-[#FF9500]/15 text-[#B26200] dark:text-[#FF9F0A]'
-                : 'text-[#86868B]'
-            }`}
+                ? 'pp-hud-btn-active'
+                : 'pp-hud-btn'
+            }
           >
             <Ruler className="w-3.5 h-3.5" />
             <span>{measurements.length > 0 ? `Ruler (${measurements.length})` : 'Ruler'}</span>

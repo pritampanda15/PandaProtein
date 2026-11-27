@@ -6,16 +6,47 @@ import type {
   MoleAnalysisData,
   MoleMutationScanResult,
   PropkaData,
+  ProvenanceVerifyResult,
   RotamerExplorerData,
   SolvationEstimate,
   StructuralDiffData,
   StructureSessionState,
 } from '../types/pdbprep';
 
+function getAccessToken(): string {
+  try {
+    const urlToken = new URLSearchParams(window.location.search).get('t');
+    if (urlToken) {
+      sessionStorage.setItem('pandaprotein_token', urlToken);
+      return urlToken;
+    }
+    return sessionStorage.getItem('pandaprotein_token') || '';
+  } catch {
+    return '';
+  }
+}
+
+function apiUrl(path: string): string {
+  // Resolve relative to current directory so --base-path /prefix proxies work seamlessly
+  const clean = path.startsWith('/') ? path.slice(1) : path;
+  return `./${clean}`;
+}
+
+function authHeaders(base?: Record<string, string>): Record<string, string> {
+  const h: Record<string, string> = { ...(base || {}) };
+  const tok = getAccessToken();
+  if (tok) h['X-PandaProtein-Token'] = tok;
+  return h;
+}
+
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(url, {
-    headers: options?.body instanceof FormData ? undefined : { 'Content-Type': 'application/json' },
+  const baseHeaders = options?.body instanceof FormData ? undefined : { 'Content-Type': 'application/json' };
+  const res = await fetch(apiUrl(url), {
     ...options,
+    headers: authHeaders({
+      ...(baseHeaders || {}),
+      ...((options?.headers as Record<string, string>) || {}),
+    }),
   });
   if (!res.ok) {
     let msg = `Request failed (${res.status})`;
@@ -308,9 +339,9 @@ export const api = {
     }),
 
   exportMole: async (sid: string, payload: Record<string, unknown>, fallbackFilename: string) => {
-    const res = await fetch(`/api/sessions/${sid}/mole/export`, {
+    const res = await fetch(apiUrl(`/api/sessions/${sid}/mole/export`), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(payload),
     });
     if (!res.ok) throw new Error(`MOLE export failed (${res.status})`);
@@ -363,9 +394,9 @@ export const api = {
     payload: Record<string, unknown>,
     fallbackFilename: string
   ) => {
-    const res = await fetch(`/api/sessions/${sid}/hole/export`, {
+    const res = await fetch(apiUrl(`/api/sessions/${sid}/hole/export`), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(payload),
     });
     if (!res.ok) throw new Error(`HOLE export failed (${res.status})`);
@@ -384,9 +415,9 @@ export const api = {
   },
 
   exportLigand: async (sid: string, ligand_id: string, format: 'pdbqt' | 'mol2' | 'sdf' | 'pdb', ph = 7.4) => {
-    const res = await fetch(`/api/sessions/${sid}/ligands/export`, {
+    const res = await fetch(apiUrl(`/api/sessions/${sid}/ligands/export`), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ ligand_id, format, ph }),
     });
     if (!res.ok) {
@@ -443,7 +474,7 @@ export const api = {
   },
 
   downloadBatchZip: async (batchId: string) => {
-    const res = await fetch(`/api/batch/${batchId}/download`);
+    const res = await fetch(apiUrl(`/api/batch/${batchId}/download`), { headers: authHeaders() });
     if (!res.ok) throw new Error(`Batch download failed (${res.status})`);
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
@@ -457,9 +488,9 @@ export const api = {
   },
 
   exportFile: async (sid: string, payload: Record<string, unknown>, fallbackFilename: string) => {
-    const res = await fetch(`/api/sessions/${sid}/export`, {
+    const res = await fetch(apiUrl(`/api/sessions/${sid}/export`), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(payload),
     });
     if (!res.ok) {
@@ -478,4 +509,82 @@ export const api = {
     a.remove();
     URL.revokeObjectURL(url);
   },
+
+  // ADapt-parity: Biological Assemblies, Per-Gap Rebuild, AD4 Prep Tree, RCSB CCD & Provenance
+  switchAssembly: (sid: string, assembly_id: string, deduplicate_axial_ions = true) =>
+    request<{ result: { message: string; assembly_id: string; symmetry_copy_chains: string[]; deduplicated_ions: number }; state: StructureSessionState }>(
+      `/api/sessions/${sid}/assembly/switch`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ assembly_id, deduplicate_axial_ions }),
+      }
+    ),
+
+  rebuildGap: (
+    sid: string,
+    payload: {
+      chain: string;
+      start_resseq: number;
+      end_resseq: number;
+      sequence_3?: string[];
+      strict_geometry?: boolean;
+      max_seeds?: number;
+    }
+  ) =>
+    request<{
+      result: {
+        rebuilt: boolean;
+        refused: boolean;
+        gap_id: string;
+        message?: string;
+        reason?: string;
+        seed?: number;
+        geometry?: Record<string, unknown>;
+      };
+      state: StructureSessionState;
+    }>(`/api/sessions/${sid}/pdbfixer/rebuild-gap`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  updateDockingPrefs: (
+    sid: string,
+    payload: {
+      residue_roles?: Record<string, 'receptor' | 'ligand' | 'exclude'>;
+      chain_roles?: Record<string, 'receptor' | 'exclude'>;
+      ion_charges?: Record<string, number>;
+      ion_substitutions?: Record<string, string | null>;
+      include_nucleic?: boolean;
+      reset_all?: boolean;
+    }
+  ) =>
+    request<{ result: { message: string }; state: StructureSessionState }>(
+      `/api/sessions/${sid}/docking-prefs`,
+      {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }
+    ),
+
+  lookupRcsbLigands: (sid: string, pdb_id?: string, force_refresh = false) =>
+    request<{ result: { source: string; pdb_id?: string | null; ligands: string[] }; state: StructureSessionState }>(
+      `/api/sessions/${sid}/rcsb-ligands`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ pdb_id, force_refresh }),
+      }
+    ),
+
+  getProvenance: (sid: string) => request<Record<string, unknown>>(`/api/sessions/${sid}/provenance`),
+
+  verifyProvenance: (sid: string, provenance: Record<string, unknown>) =>
+    request<ProvenanceVerifyResult>(`/api/sessions/${sid}/provenance/verify`, {
+      method: 'POST',
+      body: JSON.stringify({ provenance }),
+    }),
+
+  ping: () =>
+    request<{ ok: boolean; idle_exit_minutes: number; token_protected: boolean; base_path: string }>('/api/ping'),
+
+  shutdownServer: () => request<{ status: string }>('/api/shutdown', { method: 'POST' }),
 };

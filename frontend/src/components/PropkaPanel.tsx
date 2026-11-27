@@ -200,7 +200,7 @@ export const PropkaPanel: React.FC<PropkaPanelProps> = ({
               y1={padT}
               x2={toX(liveData.isoelectric_point)}
               y2={svgH - padB}
-              stroke="#AF52DE"
+              stroke="#007AFF"
               strokeWidth="1.2"
               strokeDasharray="3 3"
             />
@@ -208,7 +208,7 @@ export const PropkaPanel: React.FC<PropkaPanelProps> = ({
               x={toX(liveData.isoelectric_point) + 4}
               y={padT + 10}
               fontSize="9.5"
-              fill="#AF52DE"
+              fill="#007AFF"
               fontFamily="monospace"
             >
               pI={liveData.isoelectric_point}
@@ -385,7 +385,7 @@ export const PropkaPanel: React.FC<PropkaPanelProps> = ({
                           refreshPreview(ph, next, hisDefault, respectMetal, respectSS);
                         }}
                         className={`apple-select !py-0.5 !px-2 text-[11.5px] font-mono font-semibold ${
-                          r.is_override ? 'ring-1 ring-[#AF52DE]' : ''
+                          r.is_override ? 'ring-1 ring-[#007AFF]' : ''
                         }`}
                       >
                         {r.available_states.map((st) => (
@@ -402,7 +402,7 @@ export const PropkaPanel: React.FC<PropkaPanelProps> = ({
                   </td>
                   <td className="py-2 pl-2 text-[11px] text-[#6E6E73] dark:text-[#A1A1A6]">
                     {r.metal_coordination.length > 0 && (
-                      <span className="apple-pill bg-[#AF52DE]/15 text-[#8944AB] dark:text-[#BF5AF2] mr-1.5">
+                      <span className="apple-pill bg-[#AF52DE]/15 text-[#007AFF] dark:text-[#0A84FF] mr-1.5">
                         Metal
                       </span>
                     )}

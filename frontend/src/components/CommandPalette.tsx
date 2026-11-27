@@ -76,7 +76,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
         group: 'Actions',
         title: 'Load PDB / mmCIF / .gro or Fetch RCSB / AlphaFold',
         subtitle: 'Open Structure Import dialog',
-        icon: <Compass className="w-4 h-4 text-[#5856D6]" />,
+        icon: <Compass className="w-4 h-4 text-[#007AFF]" />,
         run: () => onQuickAction('open_import'),
       },
       {
@@ -91,6 +91,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
     const tabs: Array<[NavTab, string, string]> = [
       ['overview', 'Go to Overview & Readiness Audit', 'Readiness rings & Before→After diff'],
+      ['prep-tree', 'Go to Prep Tree (ADapt)', 'Biological assemblies, AD4 ion charges/substitutions, per-gap rebuild & provenance'],
       ['coot', 'Go to COOT Workbench', 'Mutate, rotamers, pepflip, cis-trans, regularize'],
       ['chains', 'Go to Chains & Renaming', 'Rename PDB file, swap/delete/merge chains, renumber'],
       ['pdbfixer', 'Go to PDBFixer Pipeline', 'Missing atoms/loops, AltLocs, disulfides, waters'],
@@ -135,7 +136,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
           group: 'Ligands & Pockets',
           title: `Focus Ligand ${lig.resname} (${lig.chain}:${lig.resseq})`,
           subtitle: lig.formula ? `${lig.formula} · MW ${lig.mw} Da` : `${lig.heavy_atoms} heavy atoms`,
-          icon: <Beaker className="w-4 h-4 text-[#AF52DE]" />,
+          icon: <Beaker className="w-4 h-4 text-[#007AFF]" />,
           run: () => {
             onNavigate('ligands');
             onSelectResidue({ chain: lig.chain, resseq: lig.resseq, icode: lig.icode, resname: lig.resname }, true);

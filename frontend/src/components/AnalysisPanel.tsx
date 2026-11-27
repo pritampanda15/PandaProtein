@@ -100,7 +100,7 @@ export const AnalysisPanel: React.FC<AnalysisPanelProps> = ({
       {/* Header */}
       <div className="apple-card p-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#5856D6] dark:text-[#7D7AFF]">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#007AFF] dark:text-[#0A84FF]">
             Superposition · Bilayer Orientation · Non-Covalent Networks
           </div>
           <h2 className="text-[16px] font-semibold tracking-[-0.015em]">
@@ -227,9 +227,9 @@ export const AnalysisPanel: React.FC<AnalysisPanelProps> = ({
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <div className="flex items-center gap-2 text-[13.5px] font-semibold">
-                <Compass className="w-4 h-4 text-[#AF52DE]" />
+                <Compass className="w-4 h-4 text-[#007AFF]" />
                 <span>Membrane Hydrophobic Belt &amp; Z-Axis Orientation</span>
-                <span className="apple-pill bg-[#AF52DE]/15 text-[#8944AB] dark:text-[#BF5AF2]">
+                <span className="apple-pill bg-[#AF52DE]/15 text-[#007AFF] dark:text-[#0A84FF]">
                   {interData.membrane.classification}
                 </span>
               </div>
@@ -325,7 +325,7 @@ export const AnalysisPanel: React.FC<AnalysisPanelProps> = ({
                     </span>
                     <span className="flex items-center gap-1.5">
                       {sb.inter_chain && (
-                        <span className="apple-pill bg-[#AF52DE]/15 text-[#8944AB] dark:text-[#BF5AF2]">Inter-chain</span>
+                        <span className="apple-pill bg-[#AF52DE]/15 text-[#007AFF] dark:text-[#0A84FF]">Inter-chain</span>
                       )}
                       <span className="text-[#86868B]">{sb.distance_A} Å</span>
                     </span>

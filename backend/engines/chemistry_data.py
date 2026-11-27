@@ -64,11 +64,68 @@ NONSTANDARD_TO_STANDARD: Dict[str, str] = {
 WATER_RESNAMES: Set[str] = {"HOH", "WAT", "DOD", "H2O", "SOL", "TIP", "TIP3", "SPC"}
 
 METAL_IONS: Set[str] = {
-    "ZN", "MG", "CA", "FE", "FE2", "MN", "CU", "CU1", "CO", "NI",
-    "NA", "K", "LI", "CD", "HG", "PB", "SR", "BA", "CS", "RB", "MO", "W",
+    "ZN", "MG", "CA", "FE", "FE2", "MN", "MN3", "CU", "CU1", "CO", "3CO", "NI", "3NI",
+    "NA", "K", "LI", "CD", "HG", "PB", "SR", "BA", "CS", "RB", "MO", "W", "PT", "AG", "AU",
 }
 
-HALIDE_IONS: Set[str] = {"CL", "BR", "I", "F"}
+HALIDE_IONS: Set[str] = {"CL", "BR", "I", "IOD", "F"}
+
+NUCLEIC_RESNAMES: Set[str] = {
+    "DA", "DT", "DG", "DC", "DU", "DI",
+    "A", "U", "G", "C", "I",
+    "ADE", "THY", "GUA", "CYT", "URA",
+    "DA5", "DT5", "DG5", "DC5", "DA3", "DT3", "DG3", "DC3",
+    "RA", "RU", "RG", "RC", "RA5", "RU5", "RG5", "RC5", "RA3", "RU3", "RG3", "RC3",
+}
+
+# Official AutoDock 4 / Vina supported elements (atoms outside this set cannot be typed by AD4)
+AUTODOCK4_SUPPORTED_ELEMENTS: Set[str] = {
+    "H", "D", "C", "N", "O", "F", "MG", "P", "S", "CL", "CA", "MN", "FE", "ZN", "BR", "I",
+}
+
+# RCSB Chemical Component Dictionary (CCD) standard formal charges for common ions
+CCD_ION_CHARGES: Dict[str, float] = {
+    "ZN": 2.0,
+    "MG": 2.0,
+    "CA": 2.0,
+    "MN": 2.0,
+    "MN3": 3.0,
+    "FE": 3.0,
+    "FE2": 2.0,
+    "CU": 2.0,
+    "CU1": 1.0,
+    "CO": 2.0,
+    "3CO": 3.0,
+    "NI": 2.0,
+    "3NI": 3.0,
+    "NA": 1.0,
+    "K": 1.0,
+    "LI": 1.0,
+    "CD": 2.0,
+    "HG": 2.0,
+    "PB": 2.0,
+    "SR": 2.0,
+    "BA": 2.0,
+    "CS": 1.0,
+    "RB": 1.0,
+    "PT": 2.0,
+    "AG": 1.0,
+    "AU": 1.0,
+    "CL": -1.0,
+    "BR": -1.0,
+    "I": -1.0,
+    "IOD": -1.0,
+    "F": -1.0,
+}
+
+# Valid AutoDock 4 metal ions that can substitute unsupported ions (e.g. CU -> ZN)
+AD4_ION_SUBSTITUTES: List[Dict[str, object]] = [
+    {"element": "ZN", "ad4_type": "Zn", "default_charge": 2.0, "label": "Zn²⁺ (Zinc · AD4 Zn)"},
+    {"element": "MG", "ad4_type": "Mg", "default_charge": 2.0, "label": "Mg²⁺ (Magnesium · AD4 Mg)"},
+    {"element": "CA", "ad4_type": "Ca", "default_charge": 2.0, "label": "Ca²⁺ (Calcium · AD4 Ca)"},
+    {"element": "MN", "ad4_type": "Mn", "default_charge": 2.0, "label": "Mn²⁺ (Manganese · AD4 Mn)"},
+    {"element": "FE", "ad4_type": "Fe", "default_charge": 2.0, "label": "Fe²⁺/³⁺ (Iron · AD4 Fe)"},
+]
 
 CRYSTALLIZATION_ARTIFACTS: Set[str] = {
     "EDO", "GOL", "PEG", "PGE", "1PE", "P6G", "PG4", "PE4", "PE8",

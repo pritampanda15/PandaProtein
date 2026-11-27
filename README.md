@@ -37,14 +37,13 @@
   - **COOT Auto-Refine All** with monotonic rollback guards, automatic re-validation, and full **Undo / Redo** checkpoint history (`⌘Z` / `⌘⇧Z`).
 - **All-Atom Steric Clashscore**: Fast KDTree MolProbity-calibrated overlap detection with 3D red clash spheres and automated side-chain + local relaxation clash relief.
 
-### 2. Deep PDBFixer Pipeline
-- Convert non-standard/modified residues (`MSE→MET`, `SEP→SER`, `TPO→THR`, `PTR→TYR`, `CSO/CSD→CYS`, etc.)
-- Reconstruct missing heavy side-chain atoms (NeRF internal coordinates + clash-free rotamers) and C-terminal `OXT`
-- Detect and rebuild missing internal loops (`SEQRES` + $C\text{–}N$ peptide breaks) with local regularization
-- Resolve alternate conformations (`highest_occupancy`, `lowest_bfactor`, `keep_A`)
-- Optional N/C-terminal capping (`ACE` / `NME`)
-- Detect and assign disulfide bridges (`SG–SG` cutoff → `CYX` + `SSBOND`)
-- Smart water & heterogen curation: retain active-site/bridging/buried waters, strip bulk waters and crystallization buffers (`SO4`, `EDO`, `GOL`, `PEG`, `DMS`, etc.) while keeping ligands, cofactors, and catalytic metals.
+### 2. Deep PDBFixer Pipeline & ADapt-Parity Preparation Tree (`Prep Tree`)
+- **Biological Assemblies (`REMARK 350` / mmCIF)**: Switch losslessly between the **Asymmetric Unit (ASU)** and any declared crystallographic biological assembly (`Biomol 1`, `Biomol 2`, …) with automatic **axial-ion deduplication** (e.g. `4INS` symmetry-axis zincs) and optional **3D Symmetry Copy Tint**.
+- **Interactive Per-Chain Preparation Tree**: Granular per-item **Receptor / Ligand / Exclude** role selection for every chain, ligand, cofactor, crystallization additive, metal ion, and individual water, plus full **DNA / RNA nucleic acid** receptor support (`P`, `OA`, `NA`, `A`, `HD`).
+- **AutoDock 4 Atom-Type Validator, Ion Substitution & Manual Formal Charges**: Flags elements unsupported by AutoDock 4 (e.g. `CU`, `NI`, `CO`, `PT`), lets you **substitute untypable ions** (e.g. `CU → ZN`), and lets you customize per-ion formal charges (`FE +3`, `FE2 +2`, `MN +2`, `ZN +2`, halides `-1`) directly from RCSB CCD defaults.
+- **3D Missing-Residue Markers (`REMARK 465` / `SEQRES`) & Selective Per-Gap Rebuild**: Visualizes internal gaps as **dashed orange lines + midpoint spheres** and missing N/C termini as **amber spheres 3 Å past terminal atoms**; rebuilds individual gaps across up to 3 conformational seeds with a **strict peptide-geometry & steric clearance gate** (refusing unclosable gaps with exact diagnostics) and highlights rebuilt loops in **magenta carbons**.
+- **RCSB CCD Ligand Verification**: On-demand, disk-cached RCSB Data API lookup (`~/.pandaprotein/rcsb_cache/`) to classify official ligands of interest vs. crystallization additives for any PDB entry.
+- **Deep Structural Repair**: Convert non-standard residues (`MSE→MET`, `SEP→SER`, `TPO→THR`, `PTR→TYR`, `CSO/CSD→CYS`, etc.), reconstruct missing heavy side-chain atoms (NeRF + clash-free rotamers) and C-terminal `OXT`, resolve alternate conformations (`highest_occupancy`, `lowest_bfactor`, `keep_A`, or per-residue radio picker), optional `ACE`/`NME` capping, disulfide `CYX` + `SSBOND` assignment, and smart water/heterogen curation.
 
 ### 3. PROPKA 3.5.1 & Hydrogen-Bond Network Optimization
 - Real **PROPKA 3.5.1** empirical $pK_a$ predictions with a live debounced **pH slider (0.0 – 14.0)**, interactive **SVG titration curve**, net charge, and **Isoelectric Point ($pI$)**.
@@ -79,7 +78,7 @@
   - **CHARMM36m (`charmm36-jul2022` · Recommended)** with automatic `HID/HIE/HIP → HSD/HSE/HSP` nomenclature mapping and official CHARMM MDP nonbonded physics (`vdw-modifier = force-switch`, `rvdw-switch = 1.0`, `rvdw = 1.2`, `rcoulomb = 1.2`, `DispCorr = no`).
   - Also supports **AMBER99SB-ILDN**, **CHARMM27**, **OPLS-AA/L**, **GROMOS96 54a7**, and **AMBER03**.
   - **Live `gmx pdb2gmx` Pre-Flight Test** right from the browser + **Periodic Box, Solvation & Ion Calculator** (box volume, TIP3P waters, $\text{Na}^+/\text{Cl}^-$ counter-ions, total MD atom count).
-- **Docking-Ready Exports (PandaX · AutoDock Vina · GNINA)**: Receptor **`.pdbqt`** (polar H, partial charges, AD4 atom types) + auto-computed **`vina_config.txt`** with 3D wireframe Grid Box overlay, APBS **`.pqr`**, complete **GROMACS Production `.zip` Bundle**, and publication-grade Markdown/JSON reports. *(Live 3D molecular docking lives in our companion **PandaX** suite.)*
+- **Docking-Ready Exports & Cryptographic Provenance (PandaX · AutoDock Vina 1.2 · AD4 · ADFR · GNINA)**: Vina 1.2 column-aligned receptor **`.pdbqt`** (polar H, custom/CCD charges, AD4 atom types, hex atom serials past 99,999, `REMARK 850` provenance headers), all-atom protonated **`_rec_H.pdb`** (with `USER  MOD` PROPKA titration log), MD5/SHA-256 **`provenance_session.json`** with built-in checksum verifier, auto-computed **`vina_config.txt`** with 3D wireframe Grid Box overlay, APBS **`.pqr`**, complete **GROMACS Production `.zip` Bundle**, and publication-grade Markdown/JSON reports. *(Live 3D molecular docking lives in our companion **PandaX** suite.)*
 - **Batch Multi-Structure Preparation Queue**: Drag-and-drop multiple `.pdb`/`.cif`/`.gro` files to run automated PDBFixer + COOT + PROPKA (+ optional MOLE) across an entire library, view Before → After readiness & clash audits, and download a unified **Batch ZIP** containing every prepared `.pdb`, `.gro`, `.pdbqt`, `vina_config.txt`, and `batch_summary.csv`.
 
 ### 9. Apple-Crafted 3D Workbench UX
@@ -109,13 +108,19 @@ Then launch the full 3D workbench with a single command — it automatically pic
 pandaprotein
 ```
 
-### CLI Options
+### CLI Options (Local, HPC Cluster & Reverse-Proxy Ready)
 ```bash
-pandaprotein                      # Starts on http://127.0.0.1:8000 (auto-opens browser)
-pandaprotein --port 8080          # Custom port (auto-increments if already in use)
-pandaprotein --host 0.0.0.0 --no-browser   # Remote / HPC server mode
-pandaprotein --version            # Print installed version
+pandaprotein                                # Starts on http://127.0.0.1:8000 (auto-opens browser)
+pandaprotein --port 8080                    # Custom port (auto-increments if already in use)
+pandaprotein --pdb 6GGD                     # Auto-fetch and open a PDB entry on startup
+pandaprotein --host 0.0.0.0 --no-browser    # Remote / HPC server mode
+pandaprotein --token --idle-exit 10         # Token-protected (?t=...) + auto-exit after 10 min idle
+pandaprotein --base-path /pandaprotein      # Serve cleanly behind a reverse-proxy path prefix
+pandaprotein --reuse                        # Open a new tab on an already-running local instance
+pandaprotein --version                      # Print installed version
 ```
+
+> **URL Deep-Linking**: Open any session directly via query parameters — e.g. `/?pdb=6GGD&assembly=1&tab=prep-tree` or `/?af=P0DTC2`.
 
 > **Optional System Engines**: For live `gmx pdb2gmx` pre-flight verification and OpenBabel ligand `.pdbqt`/`.mol2` conversion, install GROMACS and OpenBabel via Homebrew (`brew install gromacs open-babel`), Conda (`conda install -c conda-forge gromacs openbabel`), or `apt` (`sudo apt install gromacs openbabel`). PandaProtein auto-detects them when present.
 
@@ -163,6 +168,7 @@ PandaProtein/
 │       ├── structure_io.py          # PDB / mmCIF / GROMACS .gro I/O + RCSB & AlphaFold fetchers
 │       ├── coot_engine.py           # COOT validation, model-building, & monotonic Auto-Refine
 │       ├── pdbfixer_engine.py       # Deep PDBFixer diagnostics & structural repair pipeline
+│       ├── adapt_engine.py          # Biological assemblies, REMARK 465 gap rebuild, AD4 typing & MD5 provenance
 │       ├── propka_engine.py         # PROPKA 3.5.1 titration, protonation & H-bond optimization
 │       ├── ligand_engine.py         # RDKit 2D depictions, Ro5, contacts, conformers & .pdbqt/.mol2 prep
 │       ├── pocket_engine.py         # 3D concave druggable binding pocket detector
@@ -186,6 +192,7 @@ PandaProtein/
 │           ├── CootWorkbench.tsx    # Interactive COOT residue editor & rotamer explorer
 │           ├── RenameChainsPanel.tsx# PDB file, chain spotlight/swap/delete & ligand renamer
 │           ├── PdbFixerPanel.tsx    # Granular PDBFixer repair controls
+│           ├── PrepTreePanel.tsx    # ADapt-parity Prep Tree (Assemblies, AD4 ions, gaps & provenance)
 │           ├── PropkaPanel.tsx      # Interactive pH slider, SVG titration curve & overrides
 │           ├── ValidationPanel.tsx  # Interactive SVG Ramachandran plot & Engh-Huber charts
 │           ├── ClashesPanel.tsx     # MolProbity clashscore, rotamer outliers & NQH flips

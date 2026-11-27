@@ -243,7 +243,7 @@ export const RenameChainsPanel: React.FC<RenameChainsPanelProps> = ({
       <div className="apple-card p-4 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2 text-[13.5px] font-semibold">
-            <Layers className="w-4 h-4 text-[#5856D6]" />
+            <Layers className="w-4 h-4 text-[#007AFF]" />
             <span>Chain IDs & Ordering ({chains.length} chain{chains.length === 1 ? '' : 's'})</span>
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
@@ -425,7 +425,7 @@ export const RenameChainsPanel: React.FC<RenameChainsPanelProps> = ({
         {chains.length >= 2 && (
           <div className="pt-2.5 border-t border-black/[0.06] dark:border-white/[0.08] flex flex-wrap items-center justify-between gap-2 text-[12px]">
             <div className="flex flex-wrap items-center gap-2">
-              <GitMerge className="w-4 h-4 text-[#AF52DE]" />
+              <GitMerge className="w-4 h-4 text-[#007AFF]" />
               <span className="font-semibold">Merge Chain</span>
               <select value={mergeSrc} onChange={(e) => setMergeSrc(e.target.value)} className="apple-select font-mono">
                 {chains.map((c) => (

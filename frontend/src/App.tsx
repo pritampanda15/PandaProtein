@@ -12,6 +12,7 @@ import { LigandPanel } from './components/LigandPanel';
 import { MolePanel } from './components/MolePanel';
 import { OverviewPanel } from './components/OverviewPanel';
 import { PdbFixerPanel } from './components/PdbFixerPanel';
+import { PrepTreePanel } from './components/PrepTreePanel';
 import { PropkaPanel } from './components/PropkaPanel';
 import { RenameChainsPanel } from './components/RenameChainsPanel';
 import { SequenceStrip } from './components/SequenceStrip';
@@ -97,11 +98,37 @@ export function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [session?.session_id, session?.can_undo, session?.can_redo, busy]);
 
-  // Auto-load 6LU7 (SARS-CoV-2 Mpro + N3 inhibitor) as default structure on initial launch
+  // Startup loader with URL deep-linking (?pdb=6GGD, ?af=P0DTC2, ?tab=prep-tree, ?assembly=1) + optional idle-exit heartbeat
   useEffect(() => {
-    api
-      .fetchRCSB('6LU7')
-      .then((st) => {
+    const params = new URLSearchParams(window.location.search);
+    const urlPdb = params.get('pdb')?.trim();
+    const urlAf = params.get('af')?.trim();
+    const urlTab = params.get('tab')?.trim() as NavTab | null;
+    const urlAsm = params.get('assembly')?.trim();
+
+    if (urlTab) {
+      setActiveTab(urlTab);
+    }
+
+    const loader = urlAf
+      ? api.fetchAlphaFold(urlAf)
+      : api.fetchRCSB(urlPdb || '6LU7');
+
+    if (urlPdb) setBusy(`Fetching RCSB ${urlPdb.toUpperCase()}…`);
+    else if (urlAf) setBusy(`Fetching AlphaFold ${urlAf.toUpperCase()}…`);
+
+    loader
+      .then(async (st) => {
+        if (urlAsm && urlAsm !== 'ASU') {
+          try {
+            const switched = await api.switchAssembly(st.session_id, urlAsm, true);
+            setSession(switched.state);
+            setBusy(null);
+            return;
+          } catch {
+            // fallback to loaded ASU if requested assembly ID is absent
+          }
+        }
         setSession(st);
         setBusy(null);
       })
@@ -109,6 +136,23 @@ export function App() {
         setBusy(null);
         pushToast(e?.message || 'Backend API unreachable — start FastAPI server on port 8000', 'error');
       });
+
+    // Heartbeat for optional --idle-exit cluster mode
+    let timer: number | undefined;
+    api
+      .ping()
+      .then((info) => {
+        if (info.idle_exit_minutes > 0) {
+          timer = window.setInterval(() => {
+            api.ping().catch(() => {});
+          }, 45000);
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      if (timer) window.clearInterval(timer);
+    };
   }, []);
 
   const handleSelectResidue = (res: SelectedResidue, focus3D = false) => {
@@ -454,6 +498,16 @@ export function App() {
                     onStateUpdate={handleStateUpdate}
                     onSetBusy={setBusy}
                     onError={(m) => pushToast(m, 'error')}
+                  />
+                )}
+                {activeTab === 'prep-tree' && (
+                  <PrepTreePanel
+                    session={session}
+                    onUpdate={handleStateUpdate}
+                    onError={(m) => pushToast(m, 'error')}
+                    onBusy={setBusy}
+                    onSelectResidue={handleSelectResidue}
+                    onJumpTab={setActiveTab}
                   />
                 )}
                 {activeTab === 'export' && (

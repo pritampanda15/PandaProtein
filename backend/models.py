@@ -90,7 +90,7 @@ class AutoFixCootRequest(BaseModel):
 class ExportRequest(BaseModel):
     target: str = Field(
         default="pdb",
-        pattern="^(pdb|mmcif|gro|pdbqt|pqr|gromacs_bundle|ligands_sdf|report_json|report_md)$",
+        pattern="^(pdb|mmcif|gro|pdbqt|rec_h_pdb|pqr|gromacs_bundle|ligands_sdf|provenance_json|report_json|report_md)$",
     )
     force_field: str = "amber99sb-ildn"
     water_model: str = "tip3p"
@@ -183,3 +183,35 @@ class HoleAnalyzeRequest(BaseModel):
 
 class HoleExportRequest(HoleAnalyzeRequest):
     format: str = Field(default="csv", pattern="^(csv|pdb|json)$")
+
+
+class SwitchAssemblyRequest(BaseModel):
+    assembly_id: str = Field(default="ASU")
+    deduplicate_axial_ions: bool = True
+
+
+class RebuildGapRequest(BaseModel):
+    chain: str
+    start_resseq: int
+    end_resseq: int
+    sequence_3: Optional[List[str]] = None
+    strict_geometry: bool = True
+    max_seeds: int = Field(default=3, ge=1, le=5)
+
+
+class UpdateDockingPrefsRequest(BaseModel):
+    residue_roles: Optional[Dict[str, str]] = None
+    chain_roles: Optional[Dict[str, str]] = None
+    ion_charges: Optional[Dict[str, float]] = None
+    ion_substitutions: Optional[Dict[str, Optional[str]]] = None
+    include_nucleic: Optional[bool] = None
+    reset_all: bool = False
+
+
+class RcsbLigandLookupRequest(BaseModel):
+    pdb_id: Optional[str] = None
+    force_refresh: bool = False
+
+
+class VerifyProvenanceRequest(BaseModel):
+    provenance: Dict[str, Any]

@@ -684,7 +684,7 @@ export const MolePanel: React.FC<MolePanelProps> = ({
                             }
                             className="apple-btn-secondary !py-0.5 !px-2 text-[11px] shrink-0"
                           >
-                            <Dna className="w-3 h-3 text-[#AF52DE]" />
+                            <Dna className="w-3 h-3 text-[#007AFF]" />
                             COOT Mutate
                           </button>
                         </div>
@@ -875,7 +875,7 @@ export const MolePanel: React.FC<MolePanelProps> = ({
             </div>
             <div className="apple-card p-3">
               <div className="text-[11px] text-[#86868B]">Trans-Pores</div>
-              <div className="text-[18px] font-bold font-mono text-[#AF52DE] dark:text-[#BF5AF2]">
+              <div className="text-[18px] font-bold font-mono text-[#007AFF] dark:text-[#0A84FF]">
                 {moleData.summary.total_pores}
               </div>
             </div>
@@ -947,7 +947,7 @@ export const MolePanel: React.FC<MolePanelProps> = ({
                               <span
                                 className={`apple-pill uppercase ${
                                   ch.kind === 'pore'
-                                    ? 'bg-[#AF52DE]/15 text-[#8944AB] dark:text-[#BF5AF2]'
+                                    ? 'bg-[#AF52DE]/15 text-[#007AFF] dark:text-[#0A84FF]'
                                     : 'bg-[#007AFF]/15 text-[#007AFF] dark:text-[#0A84FF]'
                                 }`}
                               >
@@ -1162,10 +1162,10 @@ export const MolePanel: React.FC<MolePanelProps> = ({
                   </div>
 
                   {/* Automated Bottleneck Mutation Scanner */}
-                  <div className="p-3 rounded-2xl bg-[#AF52DE]/[0.06] border border-[#AF52DE]/20 space-y-2.5">
+                  <div className="p-3 rounded-2xl bg-[#007AFF]/[0.05] border border-[#007AFF]/20 space-y-2.5">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
-                        <div className="text-[12.5px] font-semibold flex items-center gap-1.5 text-[#8944AB] dark:text-[#BF5AF2]">
+                        <div className="text-[12.5px] font-semibold flex items-center gap-1.5 text-[#007AFF] dark:text-[#0A84FF]">
                           <Sparkles className="w-3.5 h-3.5" />
                           <span>In-Silico Bottleneck Mutation Scanner</span>
                         </div>
@@ -1186,7 +1186,7 @@ export const MolePanel: React.FC<MolePanelProps> = ({
                         <button
                           disabled={busy}
                           onClick={handleScanMutations}
-                          className="apple-btn-primary !py-1 !px-2.5 text-[11.5px] !bg-[#AF52DE] hover:!bg-[#8944AB]"
+                          className="apple-btn-primary !py-1 !px-2.5 text-[11.5px] "
                         >
                           <Dna className="w-3.5 h-3.5" />
                           Scan Bottleneck
@@ -1295,7 +1295,7 @@ export const MolePanel: React.FC<MolePanelProps> = ({
                             title="Open this bottleneck/lining residue in COOT Workbench to mutate & redesign tunnel"
                             className="apple-btn-secondary !py-0.5 !px-2 text-[11px] shrink-0"
                           >
-                            <Dna className="w-3 h-3 text-[#AF52DE]" />
+                            <Dna className="w-3 h-3 text-[#007AFF]" />
                             COOT Mutate
                           </button>
                         </div>

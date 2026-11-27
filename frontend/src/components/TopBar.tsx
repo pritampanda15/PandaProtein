@@ -161,7 +161,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           className="p-2 rounded-xl bg-black/[0.045] hover:bg-black/[0.08] dark:bg-white/[0.07] dark:hover:bg-white/[0.12] transition"
           title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
         >
-          {darkMode ? <Sun className="w-4 h-4 text-[#FF9F0A]" /> : <Moon className="w-4 h-4 text-[#5856D6]" />}
+          {darkMode ? <Sun className="w-4 h-4 text-[#AEAEB2]" /> : <Moon className="w-4 h-4 text-[#6E6E73]" />}
         </button>
       </div>
     </header>

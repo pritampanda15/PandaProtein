@@ -59,7 +59,7 @@ export const LigandPanel: React.FC<LigandPanelProps> = ({
   return (
     <div className="space-y-4 pb-6">
       <div className="apple-card p-4">
-        <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#AF52DE] dark:text-[#BF5AF2]">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#007AFF] dark:text-[#0A84FF]">
           RDKit Cheminformatics & Metal Coordination Analyzer
         </div>
         <h2 className="text-[16px] font-semibold tracking-[-0.015em]">
@@ -78,11 +78,11 @@ export const LigandPanel: React.FC<LigandPanelProps> = ({
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <div className="flex items-center gap-2">
-                  <Beaker className="w-4 h-4 text-[#AF52DE]" />
+                  <Beaker className="w-4 h-4 text-[#007AFF]" />
                   <span className="text-[16px] font-bold font-mono">
                     {lig.resname} ({lig.chain}:{lig.resseq})
                   </span>
-                  <span className="apple-pill bg-[#AF52DE]/15 text-[#8944AB] dark:text-[#BF5AF2] uppercase">
+                  <span className="apple-pill bg-[#AF52DE]/15 text-[#007AFF] dark:text-[#0A84FF] uppercase">
                     {lig.category}
                   </span>
                   {lig.drug_like !== undefined && (
@@ -260,12 +260,12 @@ export const LigandPanel: React.FC<LigandPanelProps> = ({
       {metals.length > 0 && (
         <div className="apple-card p-4 space-y-3">
           <div className="flex items-center gap-2 text-[13.5px] font-semibold">
-            <Atom className="w-4 h-4 text-[#AF52DE]" />
+            <Atom className="w-4 h-4 text-[#007AFF]" />
             <span>Catalytic & Structural Metal Sites ({metals.length})</span>
           </div>
           <div className="space-y-2.5">
             {metals.map((m) => (
-              <div key={m.id} className="p-3 rounded-2xl bg-[#AF52DE]/8 border border-[#AF52DE]/20 space-y-2">
+              <div key={m.id} className="p-3 rounded-2xl bg-[#007AFF]/[0.05] border border-[#007AFF]/20 space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="font-mono font-bold text-[13.5px]">
                     {m.resname} ({m.chain}:{m.resseq}) — {m.geometry}
@@ -284,7 +284,7 @@ export const LigandPanel: React.FC<LigandPanelProps> = ({
                       onClick={() =>
                         onSelectResidue({ chain: co.chain, resseq: co.resseq, icode: '', resname: co.resname }, true)
                       }
-                      className="px-2.5 py-1 rounded-xl bg-white/75 dark:bg-white/10 text-[11.5px] font-mono hover:bg-[#AF52DE]/20 transition"
+                      className="px-2.5 py-1 rounded-xl bg-white/75 dark:bg-white/10 text-[11.5px] font-mono hover:bg-[#007AFF]/15 transition"
                     >
                       {co.resname} {co.key}.{co.atom} ({co.distance_A} Å)
                     </button>
@@ -302,7 +302,7 @@ export const LigandPanel: React.FC<LigandPanelProps> = ({
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <div className="text-[13.5px] font-semibold flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-[#5856D6]" />
+                <Sparkles className="w-4 h-4 text-[#007AFF]" />
                 <span>Detected 3D Druggable Binding Pockets ({session.pockets.length})</span>
               </div>
               <p className="text-[11.5px] text-[#86868B] mt-0.5">
@@ -315,12 +315,12 @@ export const LigandPanel: React.FC<LigandPanelProps> = ({
             {session.pockets.map((pk) => (
               <div
                 key={pk.id}
-                className="p-3 rounded-2xl bg-[#5856D6]/[0.06] border border-[#5856D6]/20 space-y-2"
+                className="p-3 rounded-2xl bg-[#007AFF]/[0.05] border border-[#007AFF]/20 space-y-2"
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <span className="font-mono font-bold text-[13px]">Pocket #{pk.rank}</span>
-                    <span className="apple-pill bg-[#5856D6]/15 text-[#5856D6] dark:text-[#7D7AFF] font-mono">
+                    <span className="apple-pill bg-[#5856D6]/15 text-[#007AFF] dark:text-[#0A84FF] font-mono">
                       Druggability {pk.druggability_score}%
                     </span>
                     <span className="apple-pill bg-black/[0.05] dark:bg-white/[0.08] font-mono">
@@ -344,7 +344,7 @@ export const LigandPanel: React.FC<LigandPanelProps> = ({
                           true
                         )
                       }
-                      className="px-2 py-0.5 rounded-lg text-[10.5px] font-mono bg-white/80 dark:bg-white/10 hover:bg-[#5856D6]/20 transition"
+                      className="px-2 py-0.5 rounded-lg text-[10.5px] font-mono bg-white/80 dark:bg-white/10 hover:bg-[#007AFF]/15 transition"
                     >
                       {lr.resname} {lr.key}
                     </button>

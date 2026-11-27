@@ -20,6 +20,15 @@ _SESSIONS_DIR = Path(
 )
 _SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
 
+from .engines.adapt_engine import (
+    build_preparation_tree,
+    build_provenance_record,
+    build_remark_850_lines,
+    detect_missing_regions,
+    list_biological_assemblies,
+    lookup_rcsb_entry_ligands,
+    md5_hex,
+)
 from .engines.chemistry_data import AA_3_TO_1
 from .engines.coot_engine import _get_pos, analyze_structure_quality
 from .engines.export_engine import compute_readiness_audit, estimate_solvation_system
@@ -29,6 +38,16 @@ from .engines.pdbfixer_engine import diagnose_pdbfixer
 from .engines.pocket_engine import detect_binding_pockets
 from .engines.propka_engine import analyze_propka
 from .engines.structure_io import extract_metadata, structure_to_pdb
+
+
+def _default_docking_prefs() -> Dict[str, Any]:
+    return {
+        "residue_roles": {},
+        "chain_roles": {},
+        "ion_charges": {},
+        "ion_substitutions": {},
+        "include_nucleic": True,
+    }
 
 
 @dataclass
@@ -54,6 +73,14 @@ class StructureSession:
     history_log: List[str] = field(default_factory=list)
     baseline: Optional[Dict[str, Any]] = field(default=None)
     original_pdb: Optional[str] = field(default=None)
+    raw_input_structure: Optional[gemmi.Structure] = field(default=None, repr=False)
+    input_md5: str = ""
+    active_assembly_id: str = "ASU"
+    symmetry_copy_chains: List[str] = field(default_factory=list)
+    docking_prefs: Dict[str, Any] = field(default_factory=_default_docking_prefs)
+    rebuilt_gaps: List[Dict[str, Any]] = field(default_factory=list)
+    refused_gaps: Dict[str, str] = field(default_factory=dict)
+    rcsb_ligands: Optional[Dict[str, Any]] = field(default=None)
     _cached_state: Optional[Dict[str, Any]] = field(default=None, repr=False)
 
     def invalidate_cache(self) -> None:
@@ -79,8 +106,15 @@ class StructureSession:
                 "his_default": self.his_default,
                 "respect_metal": self.respect_metal,
                 "respect_disulfides": self.respect_disulfides,
-                "history_log": self.history_log[-50:],
+                "history_log": self.history_log[-80:],
                 "baseline": self.baseline,
+                "input_md5": self.input_md5,
+                "active_assembly_id": self.active_assembly_id,
+                "symmetry_copy_chains": self.symmetry_copy_chains,
+                "docking_prefs": self.docking_prefs,
+                "rebuilt_gaps": self.rebuilt_gaps,
+                "refused_gaps": self.refused_gaps,
+                "rcsb_ligands": self.rcsb_ligands,
                 "undo_stack": [
                     {"pdb_text": c.pdb_text, "action": c.action, "timestamp": c.timestamp}
                     for c in self.undo_stack[-15:]
@@ -107,6 +141,11 @@ class StructureSession:
             st.assign_label_seq_id()
             orig_path = _SESSIONS_DIR / f"{sid}_orig.pdb"
             orig_pdb = orig_path.read_text(encoding="utf-8") if orig_path.exists() else pdb_path.read_text(encoding="utf-8")
+            raw_st = gemmi.read_pdb_string(orig_pdb)
+            raw_st.setup_entities()
+            raw_st.assign_label_seq_id()
+            dp = _default_docking_prefs()
+            dp.update(data.get("docking_prefs") or {})
             sess = cls(
                 session_id=data["session_id"],
                 name=data["name"],
@@ -120,6 +159,14 @@ class StructureSession:
                 history_log=list(data.get("history_log") or []),
                 baseline=data.get("baseline"),
                 original_pdb=orig_pdb,
+                raw_input_structure=raw_st,
+                input_md5=str(data.get("input_md5") or md5_hex(orig_pdb)),
+                active_assembly_id=str(data.get("active_assembly_id", "ASU")),
+                symmetry_copy_chains=list(data.get("symmetry_copy_chains") or []),
+                docking_prefs=dp,
+                rebuilt_gaps=list(data.get("rebuilt_gaps") or []),
+                refused_gaps=dict(data.get("refused_gaps") or {}),
+                rcsb_ligands=data.get("rcsb_ligands"),
                 undo_stack=[Checkpoint(**c) for c in (data.get("undo_stack") or [])],
                 redo_stack=[Checkpoint(**c) for c in (data.get("redo_stack") or [])],
             )
@@ -307,16 +354,38 @@ class StructureSession:
                 "rotamer_outliers": quality["rotamers"]["counts"]["outlier"],
             }
 
+        # Assemblies, REMARK 465 missing regions, and ADapt unified preparation tree
+        asm_source = self.raw_input_structure if self.raw_input_structure is not None else self.structure
+        assemblies = list_biological_assemblies(asm_source, active_assembly_id=self.active_assembly_id)
+        missing_regions = detect_missing_regions(
+            self.structure,
+            rebuilt_records=self.rebuilt_gaps,
+            refused_records=self.refused_gaps,
+        )
+        prep_tree = build_preparation_tree(
+            self.structure,
+            docking_prefs=self.docking_prefs,
+            missing_regions=missing_regions,
+            rcsb_ligands=self.rcsb_ligands,
+            symmetry_copy_chains=self.symmetry_copy_chains,
+        )
+        rebuilt_keys = [
+            k
+            for rg in self.rebuilt_gaps
+            for k in (rg.get("rebuilt_keys") or [])
+        ]
+
         state = {
             "session_id": self.session_id,
             "name": self.name,
             "source": self.source,
             "pdb_text": structure_to_pdb(self.structure),
+            "input_md5": self.input_md5,
             "can_undo": len(self.undo_stack) > 0,
             "can_redo": len(self.redo_stack) > 0,
             "undo_count": len(self.undo_stack),
             "redo_count": len(self.redo_stack),
-            "history": list(self.history_log[-50:]),
+            "history": list(self.history_log[-80:]),
             "baseline": self.baseline,
             "metadata": metadata,
             "pdbfixer": fixer_diag,
@@ -325,6 +394,13 @@ class StructureSession:
             "ligands_info": lig_info,
             "pockets": pockets,
             "sequence_chains": seq_by_chain,
+            "assemblies": assemblies,
+            "active_assembly_id": self.active_assembly_id,
+            "symmetry_copy_chains": list(self.symmetry_copy_chains),
+            "missing_regions": missing_regions,
+            "prep_tree": prep_tree,
+            "docking_prefs": self.docking_prefs,
+            "rebuilt_keys": rebuilt_keys,
             "overlays": {
                 "disulfides": disulfide_bonds,
                 "metal_bonds": metal_bonds,
@@ -336,6 +412,37 @@ class StructureSession:
         self._cached_state = state
         return state
 
+    def get_remark_850_lines(self) -> List[str]:
+        st = self.get_full_state()
+        return build_remark_850_lines(
+            session_name=self.name,
+            source=self.source,
+            input_md5=self.input_md5,
+            active_assembly_id=self.active_assembly_id,
+            ph=self.ph,
+            docking_prefs=self.docking_prefs,
+            rebuilt_gaps=self.rebuilt_gaps,
+            propka_summary=st.get("propka"),
+        )
+
+    def get_provenance_record(self, output_files: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+        st = self.get_full_state()
+        return build_provenance_record(
+            session_id=self.session_id,
+            name=self.name,
+            source=self.source,
+            input_md5=self.input_md5,
+            current_pdb_text=st["pdb_text"],
+            active_assembly_id=self.active_assembly_id,
+            symmetry_copy_chains=self.symmetry_copy_chains,
+            ph=self.ph,
+            propka_data=st["propka"],
+            docking_prefs=self.docking_prefs,
+            rebuilt_gaps=self.rebuilt_gaps,
+            history_log=list(self.history_log),
+            output_files=output_files,
+        )
+
 
 class SessionStore:
     def __init__(self) -> None:
@@ -343,14 +450,28 @@ class SessionStore:
 
     def create(self, name: str, source: str, st: gemmi.Structure) -> StructureSession:
         sid = uuid.uuid4().hex[:10]
+        orig_pdb = structure_to_pdb(st)
+        raw_clone = st.clone()
+        # Fast non-blocking check if RCSB ligand cache already exists for this PDB ID
+        rcsb_cached = None
+        base_id = name.split(".")[0].upper()
+        if len(base_id) == 4 and base_id.isalnum() and source.startswith(("RCSB", "Bundled")):
+            try:
+                rcsb_cached = lookup_rcsb_entry_ligands(base_id, force_refresh=False)
+            except Exception:
+                rcsb_cached = None
+
         sess = StructureSession(
             session_id=sid,
             name=name,
             source=source,
             structure=st,
-            original_pdb=structure_to_pdb(st),
+            original_pdb=orig_pdb,
+            raw_input_structure=raw_clone,
+            input_md5=md5_hex(orig_pdb),
+            rcsb_ligands=rcsb_cached,
         )
-        sess.record_history(f"Loaded structure '{name}' ({source})")
+        sess.record_history(f"Loaded structure '{name}' ({source}) [md5:{sess.input_md5[:10]}]")
         self._sessions[sid] = sess
         sess.save_to_disk()
         return sess
